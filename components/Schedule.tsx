@@ -172,17 +172,18 @@ export const SchedulePage: React.FC = () => {
     
     return (
         <div className="flex flex-col h-full">
-            <header className="flex flex-wrap justify-between items-center gap-4 mb-6">
-                <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tighter">Agenda</h1>
+            <header className="flex flex-wrap justify-between items-center gap-4 mb-6 sm:mb-8 mt-4 sm:mt-6">
+                <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tighter">Agenda</h1>
                 <button 
                     onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 bg-primary text-white font-semibold py-2.5 px-5 rounded-lg shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/50 dark:focus:ring-offset-background-dark transition-colors">
-                    <span className="material-symbols-outlined text-lg">add</span>
-                    <span>Novo Agendamento</span>
+                    className="flex items-center gap-2 bg-primary text-white font-semibold py-2 sm:py-2.5 px-3 sm:px-5 rounded-lg shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/50 dark:focus:ring-offset-background-dark transition-colors text-sm sm:text-base">
+                    <span className="material-symbols-outlined text-base sm:text-lg">add</span>
+                    <span className="hidden sm:inline">Novo Agendamento</span>
+                    <span className="sm:hidden">Novo</span>
                 </button>
             </header>
             
-            <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+            <div className="flex flex-wrap justify-between items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
                 <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1 rounded-lg bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 p-1">
                         <button onClick={handlePrev} className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Anterior">
@@ -192,15 +193,15 @@ export const SchedulePage: React.FC = () => {
                             <span className="material-symbols-outlined text-xl">chevron_right</span>
                         </button>
                     </div>
-                    <button onClick={handleToday} className="h-10 px-4 rounded-lg text-sm font-medium bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800">Hoje</button>
+                    <button onClick={handleToday} className="h-8 sm:h-10 px-3 sm:px-4 rounded-lg text-xs sm:text-sm font-medium bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800">Hoje</button>
                 </div>
                 
-                <p className="text-lg font-semibold text-gray-800 dark:text-gray-100">{currentMonthLabel}</p>
+                <p className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100">{currentMonthLabel}</p>
                 
-                <div className="flex h-10 items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-800/70 p-1">
+                <div className="flex h-8 sm:h-10 items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-800/70 p-1">
                     {['Dia', 'Semana'].map(v => (
-                         <label key={v} className="flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-md px-4 has-[:checked]:bg-white dark:has-[:checked]:bg-gray-900 has-[:checked]:shadow-sm has-[:checked]:text-gray-900 dark:has-[:checked]:text-white text-gray-600 dark:text-gray-400">
-                             <span className="truncate text-sm font-medium">{v}</span>
+                         <label key={v} className="flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-md px-2 sm:px-4 has-[:checked]:bg-white dark:has-[:checked]:bg-gray-900 has-[:checked]:shadow-sm has-[:checked]:text-gray-900 dark:has-[:checked]:text-white text-gray-600 dark:text-gray-400">
+                             <span className="truncate text-xs sm:text-sm font-medium">{v}</span>
                              <input className="sr-only" name="view-switcher" type="radio" value={v} checked={view === v} onChange={() => setView(v)}/>
                          </label>
                     ))}

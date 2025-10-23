@@ -74,21 +74,21 @@ export const ReportsPage: React.FC = () => {
     }, [transactions]);
     
     return (
-        <div className="mx-auto max-w-7xl space-y-8">
-            <header>
-                <h1 className="text-text-light-primary dark:text-text-dark-primary text-4xl font-black leading-tight tracking-[-0.033em]">Relatório de Receitas</h1>
-                <p className="text-text-light-secondary dark:text-text-dark-secondary text-base font-normal leading-normal mt-2">Analise o desempenho financeiro do seu negócio.</p>
+        <div className="mx-auto max-w-7xl space-y-6 sm:space-y-8">
+            <header className="mb-6 sm:mb-8 mt-4 sm:mt-6">
+                <h1 className="text-text-light-primary dark:text-text-dark-primary text-2xl sm:text-3xl lg:text-4xl font-black leading-tight tracking-[-0.033em]">Relatório de Receitas</h1>
+                <p className="text-text-light-secondary dark:text-text-dark-secondary text-sm sm:text-base font-normal leading-normal mt-2">Analise o desempenho financeiro do seu negócio.</p>
             </header>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <KpiCard title="Receita Total" value={`R$ ${totalRevenue.toFixed(2).replace('.', ',')}`} icon="trending_up" iconColor="text-green-500" />
                 <KpiCard title="Número de Atendimentos" value={totalAppointments.toString()} icon="receipt_long" iconColor="text-blue-500" />
                 <KpiCard title="Ticket Médio" value={`R$ ${averageTicket.toFixed(2).replace('.', ',')}`} icon="attach_money" iconColor="text-orange-500" />
             </div>
 
-            <div className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-6">
-                <h3 className="text-text-light-primary dark:text-text-dark-primary text-lg font-bold">Desempenho Semanal</h3>
-                <div className="mt-6 h-80">
+            <div className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-4 sm:p-6">
+                <h3 className="text-text-light-primary dark:text-text-dark-primary text-base sm:text-lg font-bold">Desempenho Semanal</h3>
+                <div className="mt-4 sm:mt-6 h-64 sm:h-80">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={WEEKLY_REVENUE_DATA} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />

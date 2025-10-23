@@ -25,29 +25,29 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onClick 
         <button
             onClick={onClick}
             disabled={isAttended}
-            className={`flex items-center gap-4 p-4 w-full text-left transition-colors ${isAttended ? 'opacity-60 cursor-not-allowed' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'}`}
+            className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 w-full text-left transition-colors ${isAttended ? 'opacity-60 cursor-not-allowed' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'}`}
         >
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-[#392c28]">
+            <div className="flex size-10 sm:size-12 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-[#392c28]">
                 <Icon name="schedule" />
             </div>
-            <div className="flex-1">
-                <p className="text-zinc-900 dark:text-white font-medium">{appointment.time} - {appointment.clientName}</p>
-                <p className="text-zinc-600 dark:text-zinc-400 text-sm">{appointment.service}</p>
+            <div className="flex-1 min-w-0">
+                <p className="text-zinc-900 dark:text-white font-medium text-sm sm:text-base truncate">{appointment.time} - {appointment.clientName}</p>
+                <p className="text-zinc-600 dark:text-zinc-400 text-xs sm:text-sm truncate">{appointment.service}</p>
             </div>
-            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[appointment.status]}`}>{appointment.status}</span>
+            <span className={`inline-flex items-center rounded-full px-2 sm:px-2.5 py-1 text-xs font-medium ${statusStyles[appointment.status]} shrink-0`}>{appointment.status}</span>
         </button>
     );
 };
 
 const StatCard = ({ icon, value, label }: { icon: string; value: string; label: string; }) => (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15] p-5">
-        <div className="flex items-center gap-4">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-[#392c28]">
-                <span className="material-symbols-outlined text-2xl text-zinc-500 dark:text-zinc-400">{icon}</span>
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15] p-4 sm:p-5">
+        <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex size-10 sm:size-12 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-[#392c28]">
+                <span className="material-symbols-outlined text-xl sm:text-2xl text-zinc-500 dark:text-zinc-400">{icon}</span>
             </div>
-            <div>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-white">{value}</p>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">{label}</p>
+            <div className="min-w-0 flex-1">
+                <p className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white truncate">{value}</p>
+                <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 truncate">{label}</p>
             </div>
         </div>
     </div>
@@ -129,29 +129,30 @@ export const DashboardPage: React.FC = () => {
     };
 
     return (
-        <div className="mx-auto max-w-7xl">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div className="mx-auto max-w-7xl w-full">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-4 mb-6 lg:mb-8 mt-4 sm:mt-6">
                 <div className="flex flex-col gap-1">
-                    <p className="text-zinc-900 dark:text-white text-3xl sm:text-4xl font-black tracking-[-0.033em]">Olá, Hugo!</p>
-                    <p className="text-zinc-600 dark:text-zinc-400 text-base font-normal">Aqui está um resumo do seu dia.</p>
+                    <p className="text-zinc-900 dark:text-white text-2xl sm:text-3xl lg:text-4xl font-black tracking-[-0.033em]">Olá, Hugo!</p>
+                    <p className="text-zinc-600 dark:text-zinc-400 text-sm sm:text-base font-normal">Aqui está um resumo do seu dia.</p>
                 </div>
-                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#392c28]/40 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300">
-                        <span className="material-symbols-outlined text-lg">calendar_today</span>
-                        <span>{new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric'})}</span>
+                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#392c28]/40 px-3 py-2 text-xs sm:text-sm text-zinc-700 dark:text-zinc-300">
+                        <span className="material-symbols-outlined text-base sm:text-lg">calendar_today</span>
+                        <span className="hidden sm:inline">{new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric'})}</span>
+                        <span className="sm:hidden">{new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'short'})}</span>
                     </div>
                     <button 
                         onClick={() => setIsNewAppointmentModalOpen(true)}
-                        className="flex min-w-[84px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] transition-transform active:scale-95">
+                        className="flex w-full sm:w-auto cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] transition-transform active:scale-95">
                         <span className="material-symbols-outlined text-base">add</span>
-                        <span className="truncate hidden sm:inline">Novo Agendamento</span>
+                        <span className="truncate">Novo Agendamento</span>
                     </button>
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-6">
                 <div className="flex flex-col gap-4 lg:col-span-1">
-                    <h2 className="text-zinc-900 dark:text-white text-xl font-bold tracking-[-0.015em]">Agendamentos de Hoje</h2>
+                    <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em]">Agendamentos de Hoje</h2>
                     <div className="flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15]">
                         <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
                             {sortedTodayAppointments.length > 0 ? (
@@ -165,14 +166,14 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 
                 <div className="flex flex-col gap-4">
-                    <h2 className="text-zinc-900 dark:text-white text-xl font-bold tracking-[-0.015em]">Seu Desempenho Hoje</h2>
-                    <div className="rounded-xl border border-primary/30 bg-primary/10 dark:border-primary/50 dark:bg-[#392c28] p-6">
+                    <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em]">Seu Desempenho Hoje</h2>
+                    <div className="rounded-xl border border-primary/30 bg-primary/10 dark:border-primary/50 dark:bg-[#392c28] p-4 sm:p-6">
                         <div className="flex items-start justify-between gap-4">
                             <div className="flex flex-col gap-1">
-                                <p className="text-sm font-medium text-primary dark:text-primary">Total Recebido no Dia</p>
-                                <p className="text-4xl font-black text-zinc-900 dark:text-white">R$ {todayStats.totalRevenue.toFixed(2).replace('.', ',')}</p>
+                                <p className="text-xs sm:text-sm font-medium text-primary dark:text-primary">Total Recebido no Dia</p>
+                                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-zinc-900 dark:text-white">R$ {todayStats.totalRevenue.toFixed(2).replace('.', ',')}</p>
                             </div>
-                            <span className="material-symbols-outlined text-4xl text-primary">payments</span>
+                            <span className="material-symbols-outlined text-2xl sm:text-3xl lg:text-4xl text-primary">payments</span>
                         </div>
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
@@ -182,27 +183,27 @@ export const DashboardPage: React.FC = () => {
                 </div>
             </div>
             
-            <div className="mt-8">
-                 <h2 className="text-zinc-900 dark:text-white text-xl font-bold tracking-[-0.015em] mb-4">Resumo do Dia com IA</h2>
-                 <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15] p-6">
+            <div className="mt-6 lg:mt-8">
+                 <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em] mb-4">Resumo do Dia com IA</h2>
+                 <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15] p-4 sm:p-6">
                      <button 
                         onClick={handleGenerateSummary}
                         disabled={isLoading}
-                        className="flex items-center justify-center gap-2 rounded-lg h-11 px-6 bg-primary text-white text-sm font-bold disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors hover:bg-primary/90"
+                        className="flex items-center justify-center gap-2 rounded-lg h-10 sm:h-11 px-4 sm:px-6 bg-primary text-white text-sm font-bold disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors hover:bg-primary/90 w-full sm:w-auto"
                     >
                         {isLoading ? (
-                           <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                           <svg className="animate-spin -ml-1 mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                            </svg>
                         ) : (
-                           <span className="material-symbols-outlined text-lg">auto_awesome</span>
+                           <span className="material-symbols-outlined text-base sm:text-lg">auto_awesome</span>
                         )}
                          <span>{isLoading ? 'Gerando...' : 'Gerar Resumo com IA'}</span>
                      </button>
                      {summary && (
-                        <div className="mt-4 p-4 rounded-lg bg-zinc-100 dark:bg-zinc-800/50">
-                            <p className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{summary}</p>
+                        <div className="mt-4 p-3 sm:p-4 rounded-lg bg-zinc-100 dark:bg-zinc-800/50">
+                            <p className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap text-sm sm:text-base">{summary}</p>
                         </div>
                      )}
                  </div>
