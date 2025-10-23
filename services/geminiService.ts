@@ -1,8 +1,9 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { DailyStats } from '../types.ts';
+import { getGeminiApiKey } from './config.ts';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const ai = new GoogleGenAI({ apiKey: getGeminiApiKey() });
 
 export const generateDailySummary = async (stats: DailyStats): Promise<string> => {
   try {
