@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts.tsx';
 
 const navItems = [
     { path: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
@@ -18,8 +19,10 @@ const Icon = ({ name, filled = false }: { name: string; filled?: boolean }) => (
 
 export const Layout: React.FC = () => {
     const navigate = useNavigate();
+    const { signOut, user } = useAuth();
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        await signOut();
         navigate('/login');
     };
 
@@ -31,7 +34,9 @@ export const Layout: React.FC = () => {
                         <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" style={{ backgroundImage: `url("https://picsum.photos/id/1060/100/100")` }}></div>
                         <div className="flex flex-col">
                             <h1 className="text-white text-base font-medium leading-normal">Hugo Barbearia</h1>
-                            <p className="text-[#b9a29d] text-sm font-normal leading-normal">Painel de Controle</p>
+                            <p className="text-[#b9a29d] text-sm font-normal leading-normal">
+                                {user?.email || 'Painel de Controle'}
+                            </p>
                         </div>
                     </div>
                     <nav className="flex flex-col gap-2">

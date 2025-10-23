@@ -2,6 +2,7 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { 
   ThemeProvider, 
+  AuthProvider,
   ServicesProvider, 
   AppointmentsProvider, 
   TransactionsProvider 
@@ -13,34 +14,41 @@ import { SchedulePage } from './components/Schedule.tsx';
 import { ServiceRegistryPage } from './components/ServiceRegistry.tsx';
 import { ReportsPage } from './components/Reports.tsx';
 import { SettingsPage } from './components/Settings.tsx';
+import { ProtectedRoute } from './components/ProtectedRoute.tsx';
 
 // --- MAIN APP COMPONENT ---
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <ServicesProvider>
-        <AppointmentsProvider>
-          <TransactionsProvider>
-            <HashRouter>
-            <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="schedule" element={<SchedulePage />} />
-                <Route path="register-service" element={<ServiceRegistryPage />} />
-                <Route path="reports" element={<ReportsPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                {/* Placeholder routes for other nav items */}
-                <Route path="clients" element={<PlaceholderPage title="Clientes" />} />
-                <Route path="financial" element={<PlaceholderPage title="Financeiro" />} />
-                </Route>
-                <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-            </HashRouter>
-          </TransactionsProvider>
-        </AppointmentsProvider>
-      </ServicesProvider>
+      <AuthProvider>
+        <ServicesProvider>
+          <AppointmentsProvider>
+            <TransactionsProvider>
+              <HashRouter>
+                <Routes>
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/" element={
+                    <ProtectedRoute>
+                      <Layout />
+                    </ProtectedRoute>
+                  }>
+                    <Route index element={<Navigate to="/dashboard" replace />} />
+                    <Route path="dashboard" element={<DashboardPage />} />
+                    <Route path="schedule" element={<SchedulePage />} />
+                    <Route path="register-service" element={<ServiceRegistryPage />} />
+                    <Route path="reports" element={<ReportsPage />} />
+                    <Route path="settings" element={<SettingsPage />} />
+                    {/* Placeholder routes for other nav items */}
+                    <Route path="clients" element={<PlaceholderPage title="Clientes" />} />
+                    <Route path="financial" element={<PlaceholderPage title="Financeiro" />} />
+                  </Route>
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </HashRouter>
+            </TransactionsProvider>
+          </AppointmentsProvider>
+        </ServicesProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 };
