@@ -83,9 +83,6 @@ export const LoginPage: React.FC = () => {
                 </div>
               </div>
             </label>
-            <div className="text-right -mt-2">
-              <a className="text-[#b9a29d] text-sm font-normal leading-normal underline hover:text-primary transition-colors" href="#">Esqueci minha senha</a>
-            </div>
             <button 
               className="w-full mt-4 rounded-lg bg-primary py-3.5 text-base font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background-dark disabled:opacity-50 disabled:cursor-not-allowed" 
               type="submit"
@@ -101,10 +98,6 @@ export const LoginPage: React.FC = () => {
               )}
             </button>
           </form>
-          <p className="mt-8 text-center text-sm text-[#b9a29d]">
-            Não tem uma conta?
-            <a className="font-bold text-primary hover:underline" href="#">Crie uma agora</a>
-          </p>
         </div>
       </main>
       <footer className="absolute bottom-5 z-10 text-center w-full">
