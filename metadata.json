@@ -1,0 +1,5 @@
+{
+  "name": "Hugo Barbearia Dashboard",
+  "description": "A comprehensive dashboard for Hugo Barbearia to manage appointments, services, payments, and view performance reports. Features an AI-powered daily summary using the Gemini API.",
+  "requestFramePermissions": []
+}
