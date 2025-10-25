@@ -162,7 +162,17 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
                             <>
                                 <div>
                                     <p className="pb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Cliente</p>
-                                    <p className="text-lg font-semibold text-gray-800 dark:text-gray-100">{appointment.clientName}</p>
+                                    <p className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                                        {(() => {
+                                            // Extract client name from clientName field
+                                            if (appointment.clientName.includes('|')) {
+                                                return appointment.clientName.split('|')[0];
+                                            } else if (appointment.clientName.includes('(')) {
+                                                return appointment.clientName.split('(')[0].trim();
+                                            }
+                                            return appointment.clientName;
+                                        })()}
+                                    </p>
                                 </div>
                                 
                                 <div>

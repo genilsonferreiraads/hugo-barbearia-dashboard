@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { NewAppointmentModal } from './NewAppointmentModal.tsx';
-import { useAppointments } from '../contexts.tsx';
-import { Appointment } from '../types.ts';
+import { FinalizeAppointmentModal } from './FinalizeAppointmentModal.tsx';
+import { useAppointments, useTransactions } from '../contexts.tsx';
+import { Appointment, AppointmentStatus, Transaction } from '../types.ts';
 
 // --- Date Helper Functions ---
 const getStartOfWeek = (date: Date): Date => {
@@ -30,14 +31,81 @@ const areDatesEqual = (date1: Date, date2: Date): boolean => {
 
 const timeSlots = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
+// Helper function to get status color
+const getStatusColor = (status: AppointmentStatus): string => {
+    switch (status) {
+        case AppointmentStatus.Confirmed:
+            return 'bg-blue-500 hover:bg-blue-600';
+        case AppointmentStatus.Arrived:
+            return 'bg-yellow-500 hover:bg-yellow-600';
+        case AppointmentStatus.Attended:
+            return 'bg-green-500 hover:bg-green-600';
+        default:
+            return 'bg-gray-500 hover:bg-gray-600';
+    }
+};
+
+// Helper function to get status icon
+const getStatusIcon = (status: AppointmentStatus): string => {
+    switch (status) {
+        case AppointmentStatus.Confirmed:
+            return 'schedule';
+        case AppointmentStatus.Arrived:
+            return 'person';
+        case AppointmentStatus.Attended:
+            return 'check_circle';
+        default:
+            return 'help';
+    }
+};
+
+// Helper function to extract client name from clientName field
+// Supports both old format: "Name (number)" and new format: "Name|number" or just "Name"
+const extractClientName = (clientName: string): string => {
+    // Check if it's the new format with pipe separator
+    if (clientName.includes('|')) {
+        return clientName.split('|')[0];
+    }
+    // Check if it's the old format with parentheses
+    if (clientName.includes('(')) {
+        return clientName.split('(')[0].trim();
+    }
+    // Otherwise, return as is
+    return clientName;
+};
+
 export const SchedulePage: React.FC = () => {
     const [view, setView] = useState('Semana');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const { appointments, addAppointment } = useAppointments();
+    const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
+    const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+    const { appointments, addAppointment, updateAppointmentStatus } = useAppointments();
+    const { addTransaction } = useTransactions();
 
     const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
         await addAppointment(appointmentData);
+    };
+
+    const handleAppointmentClick = (appointment: Appointment) => {
+        if (appointment.status === AppointmentStatus.Attended) return;
+        setSelectedAppointment(appointment);
+        setIsFinalizeModalOpen(true);
+    };
+
+    const handleFinalizeAppointment = async (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => {
+        if (!selectedAppointment) return;
+
+        await Promise.all([
+            addTransaction({
+                ...transactionData,
+                date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            }),
+            updateAppointmentStatus(selectedAppointment.id, AppointmentStatus.Attended)
+        ]);
+
+        setIsFinalizeModalOpen(false);
+        setSelectedAppointment(null);
     };
 
     const handlePrev = () => {
@@ -78,23 +146,27 @@ export const SchedulePage: React.FC = () => {
     const appointmentsByDateAndTime = useMemo(() => {
         const map = new Map<string, Appointment>();
         appointments.forEach(app => {
-            const key = `${app.date}_${app.time}`;
+            // Normalize time format - remove seconds if present
+            const normalizedTime = app.time.includes(':') && app.time.split(':').length === 3 
+                ? app.time.substring(0, 5) // Remove seconds (e.g., "10:00:00" -> "10:00")
+                : app.time;
+            const key = `${app.date}_${normalizedTime}`;
             map.set(key, app);
         });
         return map;
     }, [appointments]);
 
     const renderWeekView = () => (
-        <div className="min-w-[1000px]">
+        <div className="min-w-[800px] sm:min-w-[1000px]">
             <table className="w-full">
                 <thead>
                     <tr className="bg-gray-50 dark:bg-gray-900">
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400 w-28">Horário</th>
+                        <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 w-20 sm:w-28">Horário</th>
                         {weekDays.map(day => (
-                            <th key={day.toISOString()} className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
-                                <div className={`flex items-center gap-2 ${areDatesEqual(day, new Date()) ? 'text-primary' : ''}`}>
-                                    <span>{day.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0,3)}</span>
-                                    <span>{day.toLocaleDateString('pt-BR', { day: '2-digit' })}</span>
+                            <th key={day.toISOString()} className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">
+                                <div className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 ${areDatesEqual(day, new Date()) ? 'text-primary' : ''}`}>
+                                    <span className="text-xs sm:text-sm">{day.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0,3)}</span>
+                                    <span className="text-xs sm:text-sm font-semibold">{day.toLocaleDateString('pt-BR', { day: '2-digit' })}</span>
                                 </div>
                             </th>
                         ))}
@@ -103,20 +175,26 @@ export const SchedulePage: React.FC = () => {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                     {timeSlots.map(time => (
                         <tr key={time}>
-                            <td className="h-[72px] px-4 py-2 align-top pt-4 text-sm font-medium text-gray-400 dark:text-gray-500">{time}</td>
+                            <td className="h-[40px] px-2 sm:px-4 py-2 align-top pt-3 text-xs sm:text-sm font-medium text-gray-400 dark:text-gray-500">{time}</td>
                             {time === "12:00" ? (
-                                <td className="h-[72px] px-4 py-2 text-center text-gray-400 bg-gray-50 dark:bg-gray-900/70 text-sm" colSpan={5}>Almoço</td>
+                                <td className="h-[40px] px-2 sm:px-4 py-2 text-center text-gray-400 bg-gray-50 dark:bg-gray-900/70 text-xs sm:text-sm" colSpan={5}>Almoço</td>
                             ) : (
                                 weekDays.map(date => {
                                     const dateStr = formatDateYYYYMMDD(date);
                                     const appointment = appointmentsByDateAndTime.get(`${dateStr}_${time}`);
                                     return (
-                                        <td key={`${time}-${dateStr}`} className="h-[72px] px-4 py-2 align-middle">
+                                        <td key={`${time}-${dateStr}`} className="h-[40px] px-2 py-1 align-middle">
                                             {appointment ? (
-                                                <button className="flex w-full min-w-[84px] items-center justify-start overflow-hidden rounded-lg h-12 px-3 bg-primary text-white text-sm font-medium shadow-sm text-left">
-                                                  <span className="truncate">{appointment.clientName} - {appointment.service}</span>
+                                                <button 
+                                                    onClick={() => handleAppointmentClick(appointment)}
+                                                    className={`inline-flex items-center gap-1 rounded-md h-7 px-2 text-white text-xs font-medium shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105 ${getStatusColor(appointment.status)}`}
+                                                >
+                                                    <span className="material-symbols-outlined text-xs">{getStatusIcon(appointment.status)}</span>
+                                                    <span className="whitespace-nowrap">{extractClientName(appointment.clientName)}</span>
                                                 </button>
-                                            ) : <div className="h-12 w-full"></div>}
+                                            ) : (
+                                                <div className="h-7 w-full"></div>
+                                            )}
                                         </td>
                                     );
                                 })
@@ -136,29 +214,41 @@ export const SchedulePage: React.FC = () => {
                 <table className="w-full">
                     <thead>
                         <tr className="bg-gray-50 dark:bg-gray-900">
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400 w-28">Horário</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                            <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 w-20 sm:w-28">Horário</th>
+                            <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">
                                  <div className={`flex items-center gap-2 ${areDatesEqual(currentDate, new Date()) ? 'text-primary' : ''}`}>
-                                    <span>{currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</span>
+                                    <span className="text-xs sm:text-sm">{currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</span>
                                 </div>
                             </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                         {timeSlots.map(time => {
-                            const appointment = todayAppointments.find(app => app.time === time);
+                            const appointment = todayAppointments.find(app => {
+                                // Normalize time format - remove seconds if present
+                                const normalizedAppTime = app.time.includes(':') && app.time.split(':').length === 3 
+                                    ? app.time.substring(0, 5) // Remove seconds (e.g., "10:00:00" -> "10:00")
+                                    : app.time;
+                                return normalizedAppTime === time;
+                            });
                              return (
                                 <tr key={time}>
-                                    <td className="h-[72px] px-4 py-2 align-middle text-sm font-medium text-gray-400 dark:text-gray-500">{time}</td>
+                                    <td className="h-[40px] px-2 sm:px-4 py-2 align-middle text-xs sm:text-sm font-medium text-gray-400 dark:text-gray-500">{time}</td>
                                     {time === "12:00" ? (
-                                        <td className="h-[72px] px-4 py-2 text-center text-gray-400 bg-gray-50 dark:bg-gray-900/70 text-sm">Almoço</td>
+                                        <td className="h-[40px] px-2 sm:px-4 py-2 text-center text-gray-400 bg-gray-50 dark:bg-gray-900/70 text-xs sm:text-sm">Almoço</td>
                                     ) : (
-                                        <td className="h-[72px] px-4 py-2 align-middle">
+                                        <td className="h-[40px] px-2 py-1 align-middle">
                                              {appointment ? (
-                                                <button className="flex w-full min-w-[84px] items-center justify-start overflow-hidden rounded-lg h-12 px-3 bg-primary text-white text-sm font-medium shadow-sm text-left">
-                                                  <span className="truncate">{appointment.clientName} - {appointment.service}</span>
+                                                <button 
+                                                    onClick={() => handleAppointmentClick(appointment)}
+                                                    className={`inline-flex items-center gap-1 rounded-md h-7 px-2 text-white text-xs font-medium shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105 ${getStatusColor(appointment.status)}`}
+                                                >
+                                                    <span className="material-symbols-outlined text-xs">{getStatusIcon(appointment.status)}</span>
+                                                    <span className="whitespace-nowrap">{extractClientName(appointment.clientName)}</span>
                                                 </button>
-                                            ) : <div className="h-12 w-full"></div>}
+                                            ) : (
+                                                <div className="h-7 w-full"></div>
+                                            )}
                                         </td>
                                     )}
                                 </tr>
@@ -211,12 +301,22 @@ export const SchedulePage: React.FC = () => {
             <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50">
                 {view === 'Semana' ? renderWeekView() : renderDayView()}
             </div>
+            
             <NewAppointmentModal 
                 isOpen={isModalOpen} 
                 onClose={() => setIsModalOpen(false)} 
                 onSave={handleSaveAppointment}
                 initialDate={formatDateYYYYMMDD(currentDate)}
             />
+            
+            {selectedAppointment && (
+                <FinalizeAppointmentModal
+                    isOpen={isFinalizeModalOpen}
+                    onClose={() => setIsFinalizeModalOpen(false)}
+                    onFinalize={handleFinalizeAppointment}
+                    appointment={selectedAppointment}
+                />
+            )}
         </div>
     );
 };

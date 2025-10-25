@@ -239,6 +239,7 @@ interface AppointmentsContextType {
     appointments: Appointment[];
     addAppointment: (appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>;
     updateAppointmentStatus: (appointmentId: number, status: AppointmentStatus) => Promise<void>;
+    deleteAppointment: (appointmentId: number) => Promise<void>;
 }
 const AppointmentsContext = createContext<AppointmentsContextType | undefined>(undefined);
 
@@ -253,8 +254,9 @@ export const AppointmentsProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const fetchAppointments = useCallback(async () => {
         const { data, error } = await supabase.from('appointments').select('*').order('date').order('time');
-        if (error) console.error('Error fetching appointments:', error);
-        else {
+        if (error) {
+            console.error('Error fetching appointments:', error);
+        } else {
             const mappedData = data?.map(({ clientname, ...rest }) => ({
                 ...rest,
                 clientName: clientname,
@@ -305,7 +307,16 @@ export const AppointmentsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     }, []);
 
-    const value = useMemo(() => ({ appointments, addAppointment, updateAppointmentStatus }), [appointments, addAppointment, updateAppointmentStatus]);
+    const deleteAppointment = useCallback(async (appointmentId: number) => {
+        const { error } = await supabase.from('appointments').delete().eq('id', appointmentId);
+        if (error) {
+            console.error('Error deleting appointment:', error);
+            throw error;
+        }
+        setAppointments(prev => prev.filter(app => app.id !== appointmentId));
+    }, []);
+
+    const value = useMemo(() => ({ appointments, addAppointment, updateAppointmentStatus, deleteAppointment }), [appointments, addAppointment, updateAppointmentStatus, deleteAppointment]);
 
     return <AppointmentsContext.Provider value={value}>{children}</AppointmentsContext.Provider>;
 };
