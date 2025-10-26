@@ -14,6 +14,15 @@ type PaymentState = {
 const Icon = ({ name, className }: { name: string; className?: string }) => 
     <span className={`material-symbols-outlined ${className || ''}`}>{name}</span>;
 
+// Helper function to get today's date in local timezone (YYYY-MM-DD format)
+const getTodayLocalDate = (): string => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 export const ServiceRegistryPage: React.FC = () => {
   const { services } = useServices();
   const { addTransaction } = useTransactions();
@@ -125,7 +134,7 @@ export const ServiceRegistryPage: React.FC = () => {
     try {
         setIsSubmitting(true);
         await addTransaction({
-            date: new Date().toISOString().split('T')[0],
+            date: getTodayLocalDate(),
             clientName,
             service: selectedServices.map(s => s.name).join(', '),
             paymentMethod: payments.map(p => p.method).join(', '),

@@ -1,306 +1,425 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppointments, useTransactions, useFinalizeAppointment, useNewAppointment } from '../contexts.tsx';
+import { useAppointments, useTransactions, useFinalizeAppointment, useNewAppointment, useAppointmentDetail } from '../contexts.tsx';
 import { Appointment, AppointmentStatus, Transaction } from '../types.ts';
 
 // --- Date Helper Functions ---
-const getStartOfWeek = (date: Date): Date => {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-  return new Date(d.setDate(diff));
-};
-
-const addDays = (date: Date, days: number): Date => {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-};
-
 const formatDateYYYYMMDD = (date: Date): string => {
-  return date.toISOString().split('T')[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
-const areDatesEqual = (date1: Date, date2: Date): boolean => {
-    return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
-}
-
-const timeSlots = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
-
-// Helper function to get status color
-const getStatusColor = (status: AppointmentStatus): string => {
-    switch (status) {
-        case AppointmentStatus.Confirmed:
-            return 'bg-blue-500 hover:bg-blue-600';
-        case AppointmentStatus.Arrived:
-            return 'bg-yellow-500 hover:bg-yellow-600';
-        case AppointmentStatus.Attended:
-            return 'bg-green-500 hover:bg-green-600';
-        default:
-            return 'bg-gray-500 hover:bg-gray-600';
-    }
+// Helper function to get today's date in local timezone (YYYY-MM-DD format)
+const getTodayLocalDate = (): string => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
-// Helper function to get status icon
-const getStatusIcon = (status: AppointmentStatus): string => {
-    switch (status) {
-        case AppointmentStatus.Confirmed:
-            return 'schedule';
-        case AppointmentStatus.Arrived:
-            return 'person';
-        case AppointmentStatus.Attended:
-            return 'check_circle';
-        default:
-            return 'help';
-    }
-};
+const AVAILABLE_TIMES = ['08:00', '10:00', '14:00', '16:00'];
 
-// Helper function to extract client name from clientName field
-// Supports both old format: "Name (number)" and new format: "Name|number" or just "Name"
-const extractClientName = (clientName: string): string => {
-    // Check if it's the new format with pipe separator
-    if (clientName.includes('|')) {
-        return clientName.split('|')[0];
-    }
-    // Check if it's the old format with parentheses
-    if (clientName.includes('(')) {
-        return clientName.split('(')[0].trim();
-    }
-    // Otherwise, return as is
-    return clientName;
-};
+const Icon = ({ name, className }: { name: string; className?: string }) => 
+    <span className={`material-symbols-outlined ${className || ''}`}>{name}</span>;
 
 export const SchedulePage: React.FC = () => {
     const navigate = useNavigate();
-    const [view, setView] = useState('Semana');
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-    const { appointments, addAppointment, updateAppointmentStatus } = useAppointments();
+    const [selectedDate, setSelectedDate] = useState<string>(getTodayLocalDate());
+    const [showCalendar, setShowCalendar] = useState(false);
+    const { appointments } = useAppointments();
     const { addTransaction } = useTransactions();
     const { setFinalizeData } = useFinalizeAppointment();
     const { setNewAppointmentData } = useNewAppointment();
+    const { setAppointmentDetail } = useAppointmentDetail();
 
-    const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
-        await addAppointment(appointmentData);
-    };
-
-    const handleAppointmentClick = (appointment: Appointment) => {
-        if (appointment.status === AppointmentStatus.Attended) return;
-        
-        // Set the finalize data in context
-        const onFinalizeHandler = async (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => {
-            await Promise.all([
-                addTransaction({
-                    ...transactionData,
-                    date: new Date().toISOString().split('T')[0],
-                }),
-                updateAppointmentStatus(appointment.id, AppointmentStatus.Attended)
-            ]);
-        };
-        
-        setFinalizeData(appointment, onFinalizeHandler);
-        navigate('/finalize-appointment');
-    };
-
-    const handlePrev = () => {
-        setCurrentDate(prev => {
-            const newDate = new Date(prev);
-            if (view === 'Semana') {
-                newDate.setDate(newDate.getDate() - 7);
-            } else {
-                newDate.setDate(newDate.getDate() - 1);
-            }
-            return newDate;
-        });
-    };
+    const selectedDateObj = new Date(`${selectedDate}T00:00:00`);
     
-    const handleNext = () => {
-        setCurrentDate(prev => {
-            const newDate = new Date(prev);
-            if (view === 'Semana') {
-                newDate.setDate(newDate.getDate() + 7);
-            } else {
-                newDate.setDate(newDate.getDate() + 1);
-            }
-            return newDate;
-        });
+    // Get appointments for the selected date
+    const dayAppointments = useMemo(() => {
+        return appointments.filter(app => app.date === selectedDate);
+    }, [appointments, selectedDate]);
+
+    // Format displayed date
+    const formatDisplayDate = (dateStr: string): string => {
+        const date = new Date(`${dateStr}T00:00:00`);
+        const isToday = dateStr === getTodayLocalDate();
+        
+        if (isToday) {
+            return 'Hoje';
+        }
+        
+        return date.toLocaleDateString('pt-BR', { 
+            weekday: 'long', 
+            day: '2-digit', 
+            month: 'long' 
+        }).charAt(0).toUpperCase() + date.toLocaleDateString('pt-BR', { 
+            weekday: 'long', 
+            day: '2-digit', 
+            month: 'long' 
+        }).slice(1);
+    };
+
+    const handlePrevDay = () => {
+        const prev = new Date(selectedDateObj);
+        prev.setDate(prev.getDate() - 1);
+        setSelectedDate(formatDateYYYYMMDD(prev));
+    };
+
+    const handleNextDay = () => {
+        const next = new Date(selectedDateObj);
+        next.setDate(next.getDate() + 1);
+        setSelectedDate(formatDateYYYYMMDD(next));
+    };
+
+    const handleDateSelect = (date: Date) => {
+        setSelectedDate(formatDateYYYYMMDD(date));
+        setShowCalendar(false);
     };
 
     const handleToday = () => {
-        setCurrentDate(new Date());
+        setSelectedDate(getTodayLocalDate());
+        setShowCalendar(false);
     };
 
-    const { weekDays, currentMonthLabel } = useMemo(() => {
-        const startOfWeek = getStartOfWeek(currentDate);
-        const days = Array.from({ length: 5 }).map((_, i) => addDays(startOfWeek, i)); // Mon-Fri
-        const monthLabel = startOfWeek.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-        return { weekDays: days, currentMonthLabel: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1) };
-    }, [currentDate]);
-
-    const appointmentsByDateAndTime = useMemo(() => {
-        const map = new Map<string, Appointment>();
-        appointments.forEach(app => {
-            // Normalize time format - remove seconds if present
-            const normalizedTime = app.time.includes(':') && app.time.split(':').length === 3 
-                ? app.time.substring(0, 5) // Remove seconds (e.g., "10:00:00" -> "10:00")
-                : app.time;
-            const key = `${app.date}_${normalizedTime}`;
-            map.set(key, app);
-        });
-        return map;
-    }, [appointments]);
-
-    const renderWeekView = () => (
-        <div className="min-w-[800px] sm:min-w-[1000px]">
-            <table className="w-full">
-                <thead>
-                    <tr className="bg-gray-50 dark:bg-gray-900">
-                        <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 w-20 sm:w-28">Horário</th>
-                        {weekDays.map(day => (
-                            <th key={day.toISOString()} className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">
-                                <div className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 ${areDatesEqual(day, new Date()) ? 'text-primary' : ''}`}>
-                                    <span className="text-xs sm:text-sm">{day.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0,3)}</span>
-                                    <span className="text-xs sm:text-sm font-semibold">{day.toLocaleDateString('pt-BR', { day: '2-digit' })}</span>
-                                </div>
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                    {timeSlots.map(time => (
-                        <tr key={time}>
-                            <td className="h-[40px] px-2 sm:px-4 py-2 align-top pt-3 text-xs sm:text-sm font-medium text-gray-400 dark:text-gray-500">{time}</td>
-                            {time === "12:00" ? (
-                                <td className="h-[40px] px-2 sm:px-4 py-2 text-center text-gray-400 bg-gray-50 dark:bg-gray-900/70 text-xs sm:text-sm" colSpan={5}>Almoço</td>
-                            ) : (
-                                weekDays.map(date => {
-                                    const dateStr = formatDateYYYYMMDD(date);
-                                    const appointment = appointmentsByDateAndTime.get(`${dateStr}_${time}`);
-                                    return (
-                                        <td key={`${time}-${dateStr}`} className="h-[40px] px-2 py-1 align-middle">
-                                            {appointment ? (
-                                                <button 
-                                                    onClick={() => handleAppointmentClick(appointment)}
-                                                    className={`inline-flex items-center gap-1 rounded-md h-7 px-2 text-white text-xs font-medium shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105 ${getStatusColor(appointment.status)}`}
-                                                >
-                                                    <span className="material-symbols-outlined text-xs">{getStatusIcon(appointment.status)}</span>
-                                                    <span className="whitespace-nowrap">{extractClientName(appointment.clientName)}</span>
-                                                </button>
-                                            ) : (
-                                                <div className="h-7 w-full"></div>
-                                            )}
-                                        </td>
-                                    );
-                                })
-                            )}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-
-    const renderDayView = () => {
-        const todayAppointments = appointments.filter(app => app.date === formatDateYYYYMMDD(currentDate));
-
-        return (
-             <div className="min-w-full">
-                <table className="w-full">
-                    <thead>
-                        <tr className="bg-gray-50 dark:bg-gray-900">
-                            <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 w-20 sm:w-28">Horário</th>
-                            <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">
-                                 <div className={`flex items-center gap-2 ${areDatesEqual(currentDate, new Date()) ? 'text-primary' : ''}`}>
-                                    <span className="text-xs sm:text-sm">{currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</span>
-                                </div>
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                        {timeSlots.map(time => {
-                            const appointment = todayAppointments.find(app => {
-                                // Normalize time format - remove seconds if present
-                                const normalizedAppTime = app.time.includes(':') && app.time.split(':').length === 3 
-                                    ? app.time.substring(0, 5) // Remove seconds (e.g., "10:00:00" -> "10:00")
-                                    : app.time;
-                                return normalizedAppTime === time;
-                            });
-                             return (
-                                <tr key={time}>
-                                    <td className="h-[40px] px-2 sm:px-4 py-2 align-middle text-xs sm:text-sm font-medium text-gray-400 dark:text-gray-500">{time}</td>
-                                    {time === "12:00" ? (
-                                        <td className="h-[40px] px-2 sm:px-4 py-2 text-center text-gray-400 bg-gray-50 dark:bg-gray-900/70 text-xs sm:text-sm">Almoço</td>
-                                    ) : (
-                                        <td className="h-[40px] px-2 py-1 align-middle">
-                                             {appointment ? (
-                                                <button 
-                                                    onClick={() => handleAppointmentClick(appointment)}
-                                                    className={`inline-flex items-center gap-1 rounded-md h-7 px-2 text-white text-xs font-medium shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105 ${getStatusColor(appointment.status)}`}
-                                                >
-                                                    <span className="material-symbols-outlined text-xs">{getStatusIcon(appointment.status)}</span>
-                                                    <span className="whitespace-nowrap">{extractClientName(appointment.clientName)}</span>
-                                                </button>
-                                            ) : (
-                                                <div className="h-7 w-full"></div>
-                                            )}
-                                        </td>
-                                    )}
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        )
+    const handleAppointmentClick = (appointment: Appointment) => {
+        setAppointmentDetail(appointment);
+        navigate(`/appointment/${appointment.id}`);
     };
-    
+
+    const handleNewAppointment = () => {
+        setNewAppointmentData(async () => {}, selectedDate);
+        navigate('/new-appointment');
+    };
+
+    // Extract client name helper
+    const extractClientName = (clientName: string): string => {
+        if (clientName.includes('|')) {
+            return clientName.split('|')[0];
+        }
+        if (clientName.includes('(')) {
+            const match = clientName.match(/^(.+?)\s*\(/);
+            return match ? match[1].trim() : clientName;
+        }
+        return clientName;
+    };
+
+    // Generate calendar days for picker
+    const generateCalendarDays = () => {
+        const today = new Date(getTodayLocalDate() + 'T00:00:00');
+        const days = [];
+        for (let i = 0; i < 30; i++) {
+            const date = new Date(today);
+            date.setDate(date.getDate() + i);
+            days.push(date);
+        }
+        return days;
+    };
+
+    const calendarDays = generateCalendarDays();
+
     return (
         <div className="flex flex-col h-full">
-            <header className="flex flex-wrap justify-between items-center gap-4 mb-6 sm:mb-8 mt-4 sm:mt-6">
-                <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tighter">Agenda</h1>
-                <button 
-                    onClick={() => {
-                        setNewAppointmentData(handleSaveAppointment, formatDateYYYYMMDD(currentDate));
-                        navigate('/new-appointment');
-                    }}
-                    className="flex items-center gap-2 bg-primary text-white font-semibold py-2 sm:py-2.5 px-3 sm:px-5 rounded-lg shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/50 dark:focus:ring-offset-background-dark transition-colors text-sm sm:text-base">
-                    <span className="material-symbols-outlined text-base sm:text-lg">add</span>
-                    <span className="hidden sm:inline">Novo Agendamento</span>
-                    <span className="sm:hidden">Novo</span>
-                </button>
-            </header>
-            
-            <div className="flex flex-wrap justify-between items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 rounded-lg bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 p-1">
-                        <button onClick={handlePrev} className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Anterior">
-                            <span className="material-symbols-outlined text-xl">chevron_left</span>
-                        </button>
-                        <button onClick={handleNext} className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Próximo">
-                            <span className="material-symbols-outlined text-xl">chevron_right</span>
-                        </button>
-                    </div>
-                    <button onClick={handleToday} className="h-8 sm:h-10 px-3 sm:px-4 rounded-lg text-xs sm:text-sm font-medium bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800">Hoje</button>
+            {/* Header */}
+            <header className="mb-6 mt-4 sm:mt-6">
+                <div className="max-w-4xl mx-auto px-4 sm:px-0">
+                    <h1 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tighter mb-6 flex items-center gap-3">
+                        <div className="p-2 sm:p-3 rounded-lg bg-primary/10 dark:bg-primary/20">
+                            <Icon name="event" className="text-primary text-2xl sm:text-3xl" />
+                        </div>
+                        <span className="bg-gradient-to-r from-primary via-primary to-primary/80 bg-clip-text text-transparent">Agenda</span>
+                    </h1>
                 </div>
                 
-                <p className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100">{currentMonthLabel}</p>
-                
-                <div className="flex h-8 sm:h-10 items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-800/70 p-1">
-                    {['Dia', 'Semana'].map(v => (
-                         <label key={v} className="flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-md px-2 sm:px-4 has-[:checked]:bg-white dark:has-[:checked]:bg-gray-900 has-[:checked]:shadow-sm has-[:checked]:text-gray-900 dark:has-[:checked]:text-white text-gray-600 dark:text-gray-400">
-                             <span className="truncate text-xs sm:text-sm font-medium">{v}</span>
-                             <input className="sr-only" name="view-switcher" type="radio" value={v} checked={view === v} onChange={() => setView(v)}/>
-                         </label>
-                    ))}
+                {/* Date Navigation - Modernized */}
+                <div className="max-w-4xl mx-auto px-4 sm:px-0 space-y-3">
+                    {/* Date Display with Calendar */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowCalendar(!showCalendar)}
+                            className="w-full flex items-center justify-between py-4 px-5 rounded-xl bg-gradient-to-r from-primary/5 to-primary/10 dark:from-primary/20 dark:to-primary/10 border border-primary/30 hover:border-primary/50 dark:hover:border-primary/40 transition-all group shadow-sm hover:shadow-md"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="p-2.5 rounded-lg bg-primary/10 dark:bg-primary/20">
+                                    <Icon name="calendar_today" className="text-primary text-2xl" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                                        {formatDisplayDate(selectedDate)}
+                                    </p>
+                                    <p className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                                        {selectedDateObj.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).charAt(0).toUpperCase() + selectedDateObj.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).slice(1)}
+                                    </p>
+                                </div>
+                            </div>
+                            <Icon name={showCalendar ? 'expand_less' : 'expand_more'} className="text-gray-400 dark:text-gray-600 text-2xl group-hover:text-primary transition-colors" />
+                        </button>
+
+                        {/* Calendar Picker Dropdown - Modern Design */}
+                        {showCalendar && (
+                            <div className="absolute top-full left-0 right-0 mt-3 z-50 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl p-3 sm:p-4 md:p-6 backdrop-blur-sm max-w-full overflow-x-hidden">
+                                <div className="space-y-4">
+                                    {/* Quick Actions */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                                        <button
+                                            onClick={handleToday}
+                                            className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-all text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2"
+                                        >
+                                            <Icon name="today" className="text-sm sm:text-base" />
+                                            <span>Hoje</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const tomorrow = new Date(selectedDateObj);
+                                                tomorrow.setDate(tomorrow.getDate() + 1);
+                                                handleDateSelect(tomorrow);
+                                            }}
+                                            className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-all text-xs sm:text-sm"
+                                        >
+                                            Amanhã
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const nextWeek = new Date(selectedDateObj);
+                                                nextWeek.setDate(nextWeek.getDate() + 7);
+                                                handleDateSelect(nextWeek);
+                                            }}
+                                            className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-all text-xs sm:text-sm"
+                                        >
+                                            Próx. sem.
+                                        </button>
+                                    </div>
+
+                                    {/* Calendar Grid */}
+                                    <div className="pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
+                                        <div className="grid grid-cols-7 gap-x-1 sm:gap-x-2 gap-y-1.5 sm:gap-y-2">
+                                            {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, idx) => (
+                                                <div key={idx} className="text-center text-xs font-semibold text-gray-500 dark:text-gray-500 py-1.5 sm:py-2">
+                                                    {day}
+                                                </div>
+                                            ))}
+                                            {calendarDays.slice(0, 30).map((date) => {
+                                    const dateStr = formatDateYYYYMMDD(date);
+                                                const isSelected = dateStr === selectedDate;
+                                                const isToday = dateStr === getTodayLocalDate();
+                                                
+                                    return (
+                                                <button 
+                                                        key={dateStr}
+                                                        onClick={() => handleDateSelect(date)}
+                                                        className={`py-1 sm:py-2 px-0 sm:px-1 rounded text-xs sm:text-sm font-semibold transition-all ${
+                                                            isSelected
+                                                                ? 'bg-primary text-white shadow-md'
+                                                                : isToday
+                                                                ? 'bg-primary/20 text-primary border border-primary/50 font-bold'
+                                                                : 'bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600'
+                                                        }`}
+                                                    >
+                                                        {date.getDate()}
+                                                </button>
+                                                );
+                                            })}
+                                        </div>
+        </div>
+                                </div>
+                            </div>
+                        )}
+            </div>
+
+                    {/* Day Navigation Arrows */}
+                    <div className="flex items-center justify-between gap-3">
+                <button 
+                            onClick={handlePrevDay}
+                            className="flex-1 py-3 px-4 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-all flex items-center justify-center gap-2 text-sm font-semibold text-gray-900 dark:text-white"
+                        >
+                            <Icon name="chevron_left" className="text-lg" />
+                            <span>Anterior</span>
+                        </button>
+
+                        <button 
+                            onClick={handleNextDay}
+                            className="flex-1 py-3 px-4 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-all flex items-center justify-center gap-2 text-sm font-semibold text-gray-900 dark:text-white"
+                        >
+                            <span>Próximo</span>
+                            <Icon name="chevron_right" className="text-lg" />
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            {/* Appointments Cards - Centered and Compact */}
+            <main className="flex-1 w-full px-4 sm:px-0">
+                <div className="max-w-4xl mx-auto space-y-6">
+                    {/* Morning Section (08:00, 10:00) */}
+                    <div>
+                        <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 px-1">Manhã</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {AVAILABLE_TIMES.slice(0, 2).map((timeSlot) => {
+                                const appointment = dayAppointments.find(app => {
+                                    const normalizedAppTime = app.time.includes(':') && app.time.split(':').length === 3 
+                                        ? app.time.substring(0, 5)
+                                        : app.time;
+                                    return normalizedAppTime === timeSlot;
+                                });
+
+                                const clientName = appointment ? extractClientName(appointment.clientName) : 'Disponível';
+                                
+                                const statusStyles: { [key in AppointmentStatus]: { bg: string; text: string; label: string; dot: string } } = {
+                                    [AppointmentStatus.Confirmed]: { 
+                                        bg: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800', 
+                                        text: 'text-blue-700 dark:text-blue-300',
+                                        label: 'Confirmado',
+                                        dot: 'bg-blue-500'
+                                    },
+                                    [AppointmentStatus.Arrived]: { 
+                                        bg: 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800', 
+                                        text: 'text-yellow-700 dark:text-yellow-300',
+                                        label: 'Chegou',
+                                        dot: 'bg-yellow-500'
+                                    },
+                                    [AppointmentStatus.Attended]: { 
+                                        bg: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800', 
+                                        text: 'text-green-700 dark:text-green-300',
+                                        label: 'Atendido',
+                                        dot: 'bg-green-500'
+                                    },
+                                };
+
+                                return (
+                                    <button
+                                        key={timeSlot}
+                                        onClick={() => appointment && handleAppointmentClick(appointment)}
+                                        disabled={!appointment}
+                                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                                            appointment
+                                                ? `${statusStyles[appointment.status].bg} border-current hover:shadow-md hover:-translate-y-0.5 cursor-pointer`
+                                                : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="space-y-1 flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-xs font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{timeSlot}</p>
+                                                    {appointment && (
+                                                        <div className={`w-2 h-2 rounded-full ${statusStyles[appointment.status].dot}`} />
+                                                    )}
+                                                </div>
+                                                <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{clientName}</p>
+                                                {appointment && (
+                                                    <>
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{appointment.service}</p>
+                                                        <p className={`text-xs font-semibold ${statusStyles[appointment.status].text}`}>
+                                                            {statusStyles[appointment.status].label}
+                                                        </p>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <div className="flex-shrink-0">
+                                                {appointment ? (
+                                                    <Icon name="arrow_forward" className="text-gray-400 dark:text-gray-600 text-lg" />
+                                                ) : (
+                                                    <Icon name="add" className="text-gray-300 dark:text-gray-700 text-lg" />
+                                                )}
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                 </div>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50">
-                {view === 'Semana' ? renderWeekView() : renderDayView()}
-            </div>
+                    {/* Afternoon Section (14:00, 16:00) */}
+                    <div>
+                        <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 px-1">Tarde</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {AVAILABLE_TIMES.slice(2, 4).map((timeSlot) => {
+                                const appointment = dayAppointments.find(app => {
+                                    const normalizedAppTime = app.time.includes(':') && app.time.split(':').length === 3 
+                                        ? app.time.substring(0, 5)
+                                        : app.time;
+                                    return normalizedAppTime === timeSlot;
+                                });
+
+                                const clientName = appointment ? extractClientName(appointment.clientName) : 'Disponível';
+                                
+                                const statusStyles: { [key in AppointmentStatus]: { bg: string; text: string; label: string; dot: string } } = {
+                                    [AppointmentStatus.Confirmed]: { 
+                                        bg: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800', 
+                                        text: 'text-blue-700 dark:text-blue-300',
+                                        label: 'Confirmado',
+                                        dot: 'bg-blue-500'
+                                    },
+                                    [AppointmentStatus.Arrived]: { 
+                                        bg: 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800', 
+                                        text: 'text-yellow-700 dark:text-yellow-300',
+                                        label: 'Chegou',
+                                        dot: 'bg-yellow-500'
+                                    },
+                                    [AppointmentStatus.Attended]: { 
+                                        bg: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800', 
+                                        text: 'text-green-700 dark:text-green-300',
+                                        label: 'Atendido',
+                                        dot: 'bg-green-500'
+                                    },
+                                };
+
+                                return (
+                                    <button
+                                        key={timeSlot}
+                                        onClick={() => appointment && handleAppointmentClick(appointment)}
+                                        disabled={!appointment}
+                                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                                            appointment
+                                                ? `${statusStyles[appointment.status].bg} border-current hover:shadow-md hover:-translate-y-0.5 cursor-pointer`
+                                                : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="space-y-1 flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-xs font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{timeSlot}</p>
+                                                    {appointment && (
+                                                        <div className={`w-2 h-2 rounded-full ${statusStyles[appointment.status].dot}`} />
+                                                    )}
+                                                </div>
+                                                <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{clientName}</p>
+                                                {appointment && (
+                                                    <>
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{appointment.service}</p>
+                                                        <p className={`text-xs font-semibold ${statusStyles[appointment.status].text}`}>
+                                                            {statusStyles[appointment.status].label}
+                                                        </p>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <div className="flex-shrink-0">
+                                                {appointment ? (
+                                                    <Icon name="arrow_forward" className="text-gray-400 dark:text-gray-600 text-lg" />
+                                                ) : (
+                                                    <Icon name="add" className="text-gray-300 dark:text-gray-700 text-lg" />
+                                                )}
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            {/* New Appointment Button */}
+            <footer className="mt-6 mb-4 max-w-4xl mx-auto w-full px-4 sm:px-0">
+                <button 
+                    onClick={handleNewAppointment}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary/80 text-white font-semibold py-3 px-5 rounded-xl shadow-md hover:shadow-lg hover:from-primary/90 hover:to-primary/70 transition-all active:scale-95"
+                >
+                    <Icon name="add_circle" className="text-lg" />
+                    <span>Novo Agendamento</span>
+                </button>
+            </footer>
         </div>
     );
 };

@@ -31,6 +31,10 @@ export const Layout: React.FC = () => {
         setIsSidebarOpen(!isSidebarOpen);
     };
 
+    const closeSidebar = () => {
+        setIsSidebarOpen(false);
+    };
+
     return (
         <div className="relative flex min-h-screen w-full flex-row">
             {/* Mobile Overlay */}
@@ -48,10 +52,10 @@ export const Layout: React.FC = () => {
                         onClick={toggleSidebar}
                         className="flex items-center justify-center w-10 h-10 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors"
                     >
-                        <span className="material-symbols-outlined text-xl">{isSidebarOpen ? 'close' : 'menu'}</span>
+                        <span className="material-symbols-outlined text-3xl">{isSidebarOpen ? 'close' : 'notes'}</span>
                     </button>
                     <div className="flex items-center">
-                        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Hugo Barbearia</span>
+                        <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-300">Hugo Barbearia</span>
                     </div>
                 </div>
             </div>
@@ -74,6 +78,7 @@ export const Layout: React.FC = () => {
                             <NavLink
                                 key={item.path}
                                 to={item.path}
+                                onClick={closeSidebar}
                                 className={({ isActive }) =>
                                     `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                                     isActive
@@ -95,6 +100,7 @@ export const Layout: React.FC = () => {
                 <div className="mt-auto flex flex-col gap-2">
                     <NavLink
                         to="/settings"
+                        onClick={closeSidebar}
                         className={({ isActive }) =>
                             `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                             isActive
@@ -110,7 +116,13 @@ export const Layout: React.FC = () => {
                             </>
                          )}
                     </NavLink>
-                    <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 rounded-lg text-white/70 hover:bg-[#392c28] hover:text-white transition-colors">
+                    <button 
+                        onClick={() => {
+                            closeSidebar();
+                            handleLogout();
+                        }} 
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-white/70 hover:bg-[#392c28] hover:text-white transition-colors"
+                    >
                         <Icon name="logout" />
                         <p className="text-sm font-medium leading-normal">Sair</p>
                     </button>

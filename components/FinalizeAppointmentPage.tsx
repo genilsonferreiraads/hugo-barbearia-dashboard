@@ -152,22 +152,22 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
         <div className="min-h-screen bg-gradient-to-br from-background-light to-gray-50 dark:from-background-dark dark:to-gray-900 flex flex-col">
             {/* Header with Back Button and Progress */}
             <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm">
-                <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3">
-                    <div className="flex items-center justify-between mb-4">
+                <div className="max-w-2xl mx-auto px-3 sm:px-6 py-2 sm:py-3">
+                    <div className="flex items-start gap-2 sm:gap-4 mb-3 sm:mb-4">
                         <button 
                             onClick={() => navigate(-1)}
-                            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-sm"
+                            className="flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-xs sm:text-sm shrink-0 mt-0.5"
                         >
                             <Icon name="arrow_back" className="text-lg" />
-                            <span className="text-xs font-medium">Voltar</span>
+                            <span className="font-medium hidden sm:inline">Voltar</span>
                         </button>
                         
-                        <div className="text-center">
-                            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Finalizar Atendimento</h1>
+                        <div className="text-center flex-1">
+                            <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white leading-tight">Finalizar Atendimento</h1>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Passo {step} de 2</p>
                         </div>
                         
-                        <div className="w-16" />
+                        <div className="w-10 sm:w-16" />
                     </div>
 
                     {/* Progress Bar */}

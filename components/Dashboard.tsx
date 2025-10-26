@@ -2,10 +2,18 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Appointment, AppointmentStatus, Transaction, PaymentMethod } from '../types.ts';
 import { generateDailySummary } from '../services/geminiService.ts';
-import { NewAppointmentModal } from './NewAppointmentModal.tsx';
-import { useAppointments, useTransactions, useFinalizeAppointment, useNewAppointment } from '../contexts.tsx';
+import { useAppointments, useTransactions, useFinalizeAppointment, useNewAppointment, useEditAppointment } from '../contexts.tsx';
 
 const Icon = ({ name }: { name: string }) => <span className="material-symbols-outlined text-2xl text-zinc-500 dark:text-zinc-400">{name}</span>;
+
+// Helper function to get today's date in local timezone (YYYY-MM-DD format)
+const getTodayLocalDate = (): string => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 
 // New Appointment Options Modal Component
 interface AppointmentOptionsModalProps {
@@ -212,13 +220,43 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onClick 
     const handleWhatsAppClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (whatsappUrl) {
-            window.open(whatsappUrl, '_blank');
+            // Extract first name from client name
+            let firstName = clientName;
+            if (clientName.includes(' ')) {
+                firstName = clientName.split(' ')[0];
+            }
+
+            // Get current time
+            const now = new Date();
+            const currentHours = now.getHours();
+            const currentMinutes = now.getMinutes();
+            const currentTime = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
+
+            // Parse appointment time
+            const [aptHours, aptMinutes] = appointment.time.split(':').map(Number);
+            const appointmentTimeInMinutes = aptHours * 60 + aptMinutes;
+            const currentTimeInMinutes = currentHours * 60 + currentMinutes;
+
+            // Generate message based on whether appointment time has passed
+            let message: string;
+            if (appointmentTimeInMinutes > currentTimeInMinutes) {
+                // Appointment is still coming
+                message = `Olá ${firstName}! Lembramos que você tem um agendamento conosco às ${appointment.time}. Contamos com sua presença! 😊`;
+            } else {
+                // Appointment time has passed
+                message = `Olá ${firstName}! Lembramos que seu agendamento era às ${appointment.time}. Se não conseguiu comparecer, entre em contato para reagendar. Obrigado!`;
+            }
+
+            // Encode message and open WhatsApp
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrlWithMessage = `https://wa.me/55${whatsapp.replace(/\D/g, '')}?text=${encodedMessage}`;
+            window.open(whatsappUrlWithMessage, '_blank');
         }
     };
 
     return (
-        <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 w-full">
-            <div className="flex size-10 sm:size-12 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-[#392c28]">
+        <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 w-full hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
+            <div className="flex size-9 sm:size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-[#392c28]">
                 <Icon name="schedule" />
             </div>
             <button
@@ -226,22 +264,29 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onClick 
                 disabled={isAttended}
                 className={`flex-1 min-w-0 text-left transition-colors ${isAttended ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-80'}`}
             >
-                <p className="text-zinc-900 dark:text-white font-medium text-sm sm:text-base truncate">{appointment.time} - {clientName}</p>
-                <p className="text-zinc-600 dark:text-zinc-400 text-xs sm:text-sm truncate">{appointment.service}</p>
+                <div className="space-y-1">
+                    <p className="text-xs sm:text-sm font-semibold text-zinc-500 dark:text-zinc-400">{appointment.time}</p>
+                    <p className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white break-words">{clientName}</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 truncate">{appointment.service}</p>
+                </div>
             </button>
-            <div className="flex items-center gap-2 shrink-0">
-                {whatsappUrl && (
+            <div className="flex flex-col items-end gap-1.5 shrink-0 mt-0.5">
+                {whatsapp && (
                     <button
                         onClick={handleWhatsAppClick}
-                        className="flex items-center justify-center rounded-lg bg-primary hover:bg-primary/90 text-white p-2 transition-colors"
-                        title="Contatar via WhatsApp"
+                        className="flex size-8 sm:size-9 items-center justify-center rounded-lg bg-primary hover:bg-primary/90 transition-colors flex-shrink-0"
+                        title="Abrir WhatsApp"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 fill-current">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5 fill-white">
                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
                         </svg>
                     </button>
                 )}
-                <span className={`inline-flex items-center rounded-full px-2 sm:px-2.5 py-1 text-xs font-medium ${statusStyles[appointment.status]}`}>{appointment.status}</span>
+                <div className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[appointment.status]}`}>
+                    {appointment.status === AppointmentStatus.Confirmed && 'Confirmado'}
+                    {appointment.status === AppointmentStatus.Arrived && 'Chegou'}
+                    {appointment.status === AppointmentStatus.Attended && 'Atendido'}
+                </div>
             </div>
         </div>
     );
@@ -265,7 +310,6 @@ export const DashboardPage: React.FC = () => {
     const [summary, setSummary] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
     
@@ -273,10 +317,11 @@ export const DashboardPage: React.FC = () => {
     const { transactions, addTransaction } = useTransactions();
     const { setFinalizeData } = useFinalizeAppointment();
     const { setNewAppointmentData } = useNewAppointment();
+    const { setEditAppointmentData } = useEditAppointment();
     const navigate = useNavigate();
 
     const todayStats = useMemo(() => {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getTodayLocalDate();
         const todayTransactions = transactions.filter(tx => tx.date === todayStr);
 
         const totalRevenue = todayTransactions.reduce((acc, tx) => acc + tx.value, 0);
@@ -287,7 +332,7 @@ export const DashboardPage: React.FC = () => {
     }, [transactions]);
     
     const sortedTodayAppointments = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayLocalDate();
         const statusOrder: { [key in AppointmentStatus]: number } = {
             [AppointmentStatus.Arrived]: 1,
             [AppointmentStatus.Confirmed]: 2,
@@ -327,7 +372,18 @@ export const DashboardPage: React.FC = () => {
     };
 
     const handleOpenEditModal = () => {
-        setIsEditModalOpen(true);
+        if (!selectedAppointment) return;
+        
+        // Create handler for saving edited appointment
+        const handleSaveEditedAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
+            await Promise.all([
+                deleteAppointment(selectedAppointment.id),
+                addAppointment(appointmentData)
+            ]);
+        };
+        
+        setEditAppointmentData(selectedAppointment, handleSaveEditedAppointment);
+        navigate('/edit-appointment');
     };
 
     const handleDeleteAppointment = () => {
@@ -352,7 +408,7 @@ export const DashboardPage: React.FC = () => {
         await Promise.all([
              addTransaction({
                 ...transactionData,
-                date: new Date().toISOString().split('T')[0],
+                date: getTodayLocalDate(),
             }),
             updateAppointmentStatus(selectedAppointment.id, AppointmentStatus.Attended)
         ]);
@@ -378,7 +434,7 @@ export const DashboardPage: React.FC = () => {
                             const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
                                 await addAppointment(appointmentData);
                             };
-                            setNewAppointmentData(handleSaveAppointment, new Date().toISOString().split('T')[0]);
+                            setNewAppointmentData(handleSaveAppointment, getTodayLocalDate());
                             navigate('/new-appointment');
                         }}
                         className="flex w-full sm:w-auto cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] transition-transform active:scale-95">
@@ -460,26 +516,6 @@ export const DashboardPage: React.FC = () => {
                 onConfirm={handleConfirmDelete}
                 appointment={selectedAppointment}
             />
-            {selectedAppointment && (
-                <>
-                    <NewAppointmentModal 
-                        isOpen={isEditModalOpen} 
-                        onClose={() => {
-                            setIsEditModalOpen(false);
-                            setSelectedAppointment(null);
-                        }} 
-                        onSave={async (appointmentData) => {
-                            // Update existing appointment
-                            await deleteAppointment(selectedAppointment!.id);
-                            await addAppointment(appointmentData);
-                            setIsEditModalOpen(false);
-                            setSelectedAppointment(null);
-                        }}
-                        initialDate={selectedAppointment.date}
-                        initialAppointment={selectedAppointment}
-                    />
-                </>
-            )}
         </div>
     );
 };

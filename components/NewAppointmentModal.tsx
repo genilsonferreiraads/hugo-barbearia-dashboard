@@ -54,12 +54,21 @@ const capitalizeName = (name: string): string => {
         .join(' ');
 };
 
+// Helper function to get today's date in local timezone (YYYY-MM-DD format)
+const getTodayLocalDate = (): string => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen, onClose, onSave, initialDate, initialAppointment }) => {
     const { appointments } = useAppointments();
     const [currentStep, setCurrentStep] = useState(1);
     const [clientName, setClientName] = useState('');
     const [whatsapp, setWhatsapp] = useState('');
-    const [date, setDate] = useState(initialDate || new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(initialDate || getTodayLocalDate());
     const [time, setTime] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
 
@@ -67,7 +76,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
         setCurrentStep(1);
         setClientName('');
         setWhatsapp('');
-        setDate(initialDate || new Date().toISOString().split('T')[0]);
+        setDate(initialDate || getTodayLocalDate());
         setTime('');
         setErrorMessage('');
     };
@@ -97,7 +106,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
                 }
             } else {
                 // New appointment mode
-                setDate(initialDate || new Date().toISOString().split('T')[0]);
+                setDate(initialDate || getTodayLocalDate());
                 resetForm();
             }
             setCurrentStep(1);
@@ -286,7 +295,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
                                     <input 
                                         required
                                         type="date"
-                                        min={new Date().toISOString().split('T')[0]}
+                                        min={getTodayLocalDate()}
                                         className="form-input h-12 w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg border border-gray-300 bg-gray-50 p-3 text-base font-normal text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-primary"
                                         value={date}
                                         onChange={(e) => {

@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Appointment } from '../types.ts';
 import { useAppointments } from '../contexts.tsx';
 
-interface NewAppointmentPageProps {
+interface EditAppointmentPageProps {
     onSave: (appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>;
-    initialDate?: string;
+    initialAppointment: Appointment;
 }
 
 const Icon = ({ name, className }: { name: string; className?: string }) => 
@@ -27,6 +27,14 @@ const isTimeInPast = (date: string, time: string): boolean => {
     return selectedDateTime < now;
 };
 
+const capitalizeName = (name: string): string => {
+    return name
+        .toLowerCase()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+};
+
 const formatWhatsApp = (value: string): string => {
     const numbers = value.replace(/\D/g, '');
     const limited = numbers.slice(0, 11);
@@ -35,14 +43,6 @@ const formatWhatsApp = (value: string): string => {
     if (limited.length <= 3) return `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
     if (limited.length <= 7) return `(${limited.slice(0, 2)}) ${limited.slice(2, 3)} ${limited.slice(3)}`;
     return `(${limited.slice(0, 2)}) ${limited.slice(2, 3)} ${limited.slice(3, 7)}-${limited.slice(7)}`;
-};
-
-const capitalizeName = (name: string): string => {
-    return name
-        .toLowerCase()
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
 };
 
 // Helper function to get today's date in local timezone (YYYY-MM-DD format)
@@ -54,31 +54,45 @@ const getTodayLocalDate = (): string => {
     return `${year}-${month}-${day}`;
 };
 
-export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, initialDate }) => {
+export const EditAppointmentPage: React.FC<EditAppointmentPageProps> = ({ onSave, initialAppointment }) => {
     const navigate = useNavigate();
     const { appointments } = useAppointments();
     const [step, setStep] = useState(1);
     const [clientName, setClientName] = useState('');
     const [whatsapp, setWhatsapp] = useState('');
-    const [date, setDate] = useState(initialDate || getTodayLocalDate());
+    const [date, setDate] = useState('');
     const [time, setTime] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Function to check if a time slot is available for a given date
-    const isTimeSlotAvailable = (selectedDate: string, selectedTime: string): boolean => {
-        const normalizedTime = normalizeTime(selectedTime);
-        const isBooked = appointments.some(apt => {
-            const aptNormalizedTime = normalizeTime(apt.time);
-            return apt.date === selectedDate && aptNormalizedTime === normalizedTime;
-        });
-        return !isBooked;
-    };
-
-    const handleWhatsAppChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const formatted = formatWhatsApp(e.target.value);
-        setWhatsapp(formatted);
-    };
+    // Initialize with existing appointment data
+    useEffect(() => {
+        if (initialAppointment) {
+            setDate(initialAppointment.date);
+            setTime(normalizeTime(initialAppointment.time));
+            
+            // Extract client name and WhatsApp
+            if (initialAppointment.clientName.includes('|')) {
+                const parts = initialAppointment.clientName.split('|');
+                setClientName(parts[0]);
+                if (parts[1]) {
+                    setWhatsapp(formatWhatsApp(parts[1]));
+                }
+            } else if (initialAppointment.clientName.includes('(')) {
+                const match = initialAppointment.clientName.match(/^(.+?)\s*\((.+?)\)/);
+                if (match) {
+                    setClientName(match[1].trim());
+                    if (match[2]) {
+                        setWhatsapp(formatWhatsApp(match[2]));
+                    }
+                } else {
+                    setClientName(initialAppointment.clientName);
+                }
+            } else {
+                setClientName(initialAppointment.clientName);
+            }
+        }
+    }, [initialAppointment]);
 
     const handleNextStep = () => {
         setErrorMessage('');
@@ -101,6 +115,31 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
         }
     };
 
+    const handleWhatsAppChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const formatted = formatWhatsApp(e.target.value);
+        setWhatsapp(formatted);
+    };
+
+    // Function to check if a time slot is available (excluding current appointment)
+    const isTimeSlotAvailable = (selectedDate: string, selectedTime: string): boolean => {
+        const normalizedTime = normalizeTime(selectedTime);
+        
+        // If it's the same date and time as the original appointment, it's always available
+        if (selectedDate === initialAppointment.date && normalizedTime === normalizeTime(initialAppointment.time)) {
+            return true;
+        }
+        
+        const isBooked = appointments.some(apt => {
+            // Skip the current appointment being edited
+            if (apt.id === initialAppointment.id) {
+                return false;
+            }
+            const aptNormalizedTime = normalizeTime(apt.time);
+            return apt.date === selectedDate && aptNormalizedTime === normalizedTime;
+        });
+        return !isBooked;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMessage('');
@@ -116,7 +155,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
             return;
         }
 
-        // Check if the time slot is already booked
+        // Check if the time slot is available (excluding current appointment)
         if (!isTimeSlotAvailable(date, time)) {
             setErrorMessage("Este horário já está ocupado nesta data. Por favor, escolha outro horário.");
             return;
@@ -124,12 +163,8 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
 
         try {
             setIsSubmitting(true);
-            const clientNameWithWhatsApp = whatsapp 
-                ? `${clientName}|${whatsapp}`
-                : clientName;
-                
             await onSave({
-                clientName: clientNameWithWhatsApp,
+                clientName: whatsapp ? `${clientName}|${whatsapp.replace(/\D/g, '')}` : clientName,
                 service: 'Aguardando atendimento',
                 date,
                 time,
@@ -160,7 +195,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                         </button>
                         
                         <div className="text-center flex-1">
-                            <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white leading-tight">Novo Agendamento</h1>
+                            <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white leading-tight">Editar Agendamento</h1>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Passo {step} de 2</p>
                         </div>
                         
@@ -206,13 +241,11 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                 </label>
 
                                 <label className="block space-y-2">
-                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                        WhatsApp <span className="text-gray-500 text-xs">(Opcional)</span>
-                                    </p>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">WhatsApp (Opcional)</p>
                                     <input 
                                         type="tel"
                                         className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
-                                        placeholder="(87) 9 9155-6444"
+                                        placeholder="(11) 9 9999-9999"
                                         value={whatsapp}
                                         onChange={handleWhatsAppChange}
                                     />
@@ -331,7 +364,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                     {isSubmitting ? (
                                         <>
                                             <span className="animate-spin">⏳</span>
-                                            <span>Agendando...</span>
+                                            <span>Salvando...</span>
                                         </>
                                     ) : (
                                         <>

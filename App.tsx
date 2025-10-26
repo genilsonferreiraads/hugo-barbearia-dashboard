@@ -8,8 +8,12 @@ import {
   TransactionsProvider,
   FinalizeAppointmentProvider,
   NewAppointmentProvider,
+  EditAppointmentProvider,
+  AppointmentDetailProvider,
   useFinalizeAppointment,
-  useNewAppointment
+  useNewAppointment,
+  useEditAppointment,
+  useAppointmentDetail
 } from './contexts.tsx';
 import { Layout } from './components/Layout.tsx';
 import { LoginPage } from './components/Login.tsx';
@@ -21,6 +25,8 @@ import { SettingsPage } from './components/Settings.tsx';
 import { ProtectedRoute } from './components/ProtectedRoute.tsx';
 import { FinalizeAppointmentPage } from './components/FinalizeAppointmentPage.tsx';
 import { NewAppointmentPage } from './components/NewAppointmentPage.tsx';
+import { EditAppointmentPage } from './components/EditAppointmentPage.tsx';
+import { AppointmentDetailPage } from './components/AppointmentDetailPage.tsx';
 
 // Wrapper for new appointment page
 const NewAppointmentWrapper: React.FC = () => {
@@ -55,6 +61,37 @@ const FinalizeAppointmentWrapper: React.FC = () => {
   );
 };
 
+// Wrapper for edit appointment page
+const EditAppointmentWrapper: React.FC = () => {
+  const { appointment, onSave } = useEditAppointment();
+  
+  if (!appointment || !onSave) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <EditAppointmentPage 
+      initialAppointment={appointment}
+      onSave={onSave}
+    />
+  );
+};
+
+// Wrapper for appointment detail page
+const AppointmentDetailWrapper: React.FC = () => {
+  const { appointment } = useAppointmentDetail();
+  
+  if (!appointment) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <AppointmentDetailPage 
+      appointment={appointment}
+    />
+  );
+};
+
 // --- MAIN APP COMPONENT ---
 const App: React.FC = () => {
   return (
@@ -65,37 +102,51 @@ const App: React.FC = () => {
             <TransactionsProvider>
               <FinalizeAppointmentProvider>
                 <NewAppointmentProvider>
-                  <HashRouter>
-                    <Routes>
-                      <Route path="/login" element={<LoginPage />} />
-                      <Route path="/" element={
-                        <ProtectedRoute>
-                          <Layout />
-                        </ProtectedRoute>
-                      }>
-                        <Route index element={<Navigate to="/dashboard" replace />} />
-                        <Route path="dashboard" element={<DashboardPage />} />
-                        <Route path="schedule" element={<SchedulePage />} />
-                        <Route path="register-service" element={<ServiceRegistryPage />} />
-                        <Route path="reports" element={<ReportsPage />} />
-                        <Route path="settings" element={<SettingsPage />} />
-                        <Route path="finalize-appointment" element={
-                          <ProtectedRoute>
-                            <FinalizeAppointmentWrapper />
-                          </ProtectedRoute>
-                        } />
-                        <Route path="new-appointment" element={
-                          <ProtectedRoute>
-                            <NewAppointmentWrapper />
-                          </ProtectedRoute>
-                        } />
-                        {/* Placeholder routes for other nav items */}
-                        <Route path="clients" element={<PlaceholderPage title="Clientes" />} />
-                        <Route path="financial" element={<PlaceholderPage title="Financeiro" />} />
-                      </Route>
-                      <Route path="*" element={<Navigate to="/" />} />
-                    </Routes>
-                  </HashRouter>
+                  <EditAppointmentProvider>
+                    <AppointmentDetailProvider>
+                      <HashRouter>
+                        <Routes>
+                          <Route path="/login" element={<LoginPage />} />
+                          <Route path="/" element={
+                            <ProtectedRoute>
+                              <Layout />
+                            </ProtectedRoute>
+                          }>
+                            <Route index element={<Navigate to="/dashboard" replace />} />
+                            <Route path="dashboard" element={<DashboardPage />} />
+                            <Route path="schedule" element={<SchedulePage />} />
+                            <Route path="register-service" element={<ServiceRegistryPage />} />
+                            <Route path="reports" element={<ReportsPage />} />
+                            <Route path="settings" element={<SettingsPage />} />
+                            <Route path="finalize-appointment" element={
+                              <ProtectedRoute>
+                                <FinalizeAppointmentWrapper />
+                              </ProtectedRoute>
+                            } />
+                            <Route path="new-appointment" element={
+                              <ProtectedRoute>
+                                <NewAppointmentWrapper />
+                              </ProtectedRoute>
+                            } />
+                            <Route path="edit-appointment" element={
+                              <ProtectedRoute>
+                                <EditAppointmentWrapper />
+                              </ProtectedRoute>
+                            } />
+                            <Route path="appointment/:id" element={
+                              <ProtectedRoute>
+                                <AppointmentDetailWrapper />
+                              </ProtectedRoute>
+                            } />
+                            {/* Placeholder routes for other nav items */}
+                            <Route path="clients" element={<PlaceholderPage title="Clientes" />} />
+                            <Route path="financial" element={<PlaceholderPage title="Financeiro" />} />
+                          </Route>
+                          <Route path="*" element={<Navigate to="/" />} />
+                        </Routes>
+                      </HashRouter>
+                    </AppointmentDetailProvider>
+                  </EditAppointmentProvider>
                 </NewAppointmentProvider>
               </FinalizeAppointmentProvider>
             </TransactionsProvider>

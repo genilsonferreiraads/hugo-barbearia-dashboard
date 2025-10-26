@@ -408,3 +408,86 @@ export const NewAppointmentProvider: React.FC<{ children: React.ReactNode }> = (
         </NewAppointmentContext.Provider>
     );
 };
+
+// --- EDIT APPOINTMENT CONTEXT ---
+interface EditAppointmentContextType {
+    appointment: Appointment | null;
+    onSave: ((appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>) | null;
+    setEditAppointmentData: (appointment: Appointment, onSave: (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>) => void;
+    clearEditAppointmentData: () => void;
+}
+
+const EditAppointmentContext = createContext<EditAppointmentContextType | undefined>(undefined);
+
+export const useEditAppointment = () => {
+    const context = useContext(EditAppointmentContext);
+    if (!context) throw new Error('useEditAppointment must be used within an EditAppointmentProvider');
+    return context;
+};
+
+export const EditAppointmentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [appointment, setAppointment] = useState<Appointment | null>(null);
+    const [onSave, setOnSave] = useState<((appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>) | null>(null);
+
+    const setEditAppointmentData = useCallback((apt: Appointment, handler: (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>) => {
+        setAppointment(apt);
+        setOnSave(() => handler);
+    }, []);
+
+    const clearEditAppointmentData = useCallback(() => {
+        setAppointment(null);
+        setOnSave(null);
+    }, []);
+
+    const value = useMemo(() => ({
+        appointment,
+        onSave,
+        setEditAppointmentData,
+        clearEditAppointmentData,
+    }), [appointment, onSave, setEditAppointmentData, clearEditAppointmentData]);
+
+    return (
+        <EditAppointmentContext.Provider value={value}>
+            {children}
+        </EditAppointmentContext.Provider>
+    );
+};
+
+// --- APPOINTMENT DETAIL CONTEXT ---
+interface AppointmentDetailContextType {
+    appointment: Appointment | null;
+    setAppointmentDetail: (appointment: Appointment) => void;
+    clearAppointmentDetail: () => void;
+}
+
+const AppointmentDetailContext = createContext<AppointmentDetailContextType | undefined>(undefined);
+
+export const useAppointmentDetail = () => {
+    const context = useContext(AppointmentDetailContext);
+    if (!context) throw new Error('useAppointmentDetail must be used within an AppointmentDetailProvider');
+    return context;
+};
+
+export const AppointmentDetailProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [appointment, setAppointment] = useState<Appointment | null>(null);
+
+    const setAppointmentDetail = useCallback((apt: Appointment) => {
+        setAppointment(apt);
+    }, []);
+
+    const clearAppointmentDetail = useCallback(() => {
+        setAppointment(null);
+    }, []);
+
+    const value = useMemo(() => ({
+        appointment,
+        setAppointmentDetail,
+        clearAppointmentDetail,
+    }), [appointment, setAppointmentDetail, clearAppointmentDetail]);
+
+    return (
+        <AppointmentDetailContext.Provider value={value}>
+            {children}
+        </AppointmentDetailContext.Provider>
+    );
+};
