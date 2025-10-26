@@ -26,6 +26,7 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
     const [selectedServices, setSelectedServices] = useState<Service[]>([]);
     const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: PaymentMethod.Pix, amount: '' }]);
     const [discount, setDiscount] = useState('');
+    const [showAllServices, setShowAllServices] = useState(false);
 
     const subtotal = useMemo(() => {
         return selectedServices.reduce((acc, service) => acc + service.price, 0);
@@ -41,6 +42,8 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
         return total < 0 ? 0 : total;
     }, [subtotal, discountValue]);
 
+    const displayedServices = showAllServices ? services : services.slice(0, 3);
+
     useEffect(() => {
         if (isOpen) {
             const appointmentServiceText = appointment.service.toLowerCase();
@@ -51,7 +54,8 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
             
             setPayments([{ id: Date.now(), method: PaymentMethod.Pix, amount: initialSubtotal.toFixed(2).replace('.', ',') }]);
             setDiscount('');
-            setStep(1); // Reset to step 1
+            setStep(1);
+            setShowAllServices(false);
         }
     }, [isOpen, appointment, services]);
 
@@ -146,25 +150,25 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
             onClick={onClose}
         >
             <div 
-                className="flex w-full max-w-lg flex-col overflow-hidden rounded-xl bg-background-light dark:bg-background-dark shadow-2xl"
+                className="flex w-full max-w-lg flex-col overflow-hidden rounded-xl bg-background-light dark:bg-background-dark shadow-2xl max-h-[90vh]"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between border-b border-gray-200 p-5 dark:border-white/10">
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">Finalizar Atendimento</p>
+                <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-white/10">
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">Finalizar Atendimento</p>
                     <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white">
                         <Icon name="close" />
                     </button>
                 </div>
                 
-                <form onSubmit={handleSubmit}>
-                    <div className="flex flex-col gap-6 p-5 min-h-[350px] max-h-[70vh] overflow-y-auto">
+                <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+                    <div className="flex-1 overflow-y-auto p-4">
                         {step === 1 && (
-                            <>
+                            <div className="flex flex-col gap-4">
+                                {/* Client Name */}
                                 <div>
-                                    <p className="pb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Cliente</p>
-                                    <p className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cliente</p>
+                                    <p className="text-base font-semibold text-gray-900 dark:text-white mt-1">
                                         {(() => {
-                                            // Extract client name from clientName field
                                             if (appointment.clientName.includes('|')) {
                                                 return appointment.clientName.split('|')[0];
                                             } else if (appointment.clientName.includes('(')) {
@@ -175,118 +179,137 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
                                     </p>
                                 </div>
                                 
+                                {/* Services */}
                                 <div>
-                                    <h2 className="text-gray-800 dark:text-gray-100 text-base font-medium leading-tight pb-3">Serviços Realizados</h2>
-                                    <div className="flex gap-3 flex-wrap">
-                                        {services.map(service => {
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Serviços ({selectedServices.length} selecionado{selectedServices.length !== 1 ? 's' : ''})</p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {displayedServices.map(service => {
                                             const isSelected = selectedServices.some(s => s.id === service.id);
                                             return (
                                             <button 
                                                 key={service.id}
                                                 type="button"
                                                 onClick={() => handleServiceToggle(service)}
-                                                className={`flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-lg px-4 transition-colors ${
+                                                className={`flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                                 isSelected
                                                     ? 'bg-primary text-white'
-                                                    : 'bg-zinc-200 dark:bg-[#392c28] text-zinc-700 dark:text-white hover:bg-zinc-300 dark:hover:bg-[#54403b]'
+                                                    : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
                                                 }`}
                                             >
-                                                <p className="text-sm font-medium leading-normal">{service.name}</p>
+                                                <span className="text-xs">{service.name}</span>
+                                                <span className="text-xs text-gray-600 dark:text-gray-400">R$ {service.price.toFixed(2).replace('.', ',')}</span>
                                             </button>
                                             );
                                         })}
                                     </div>
+                                    
+                                    {services.length > 3 && !showAllServices && (
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowAllServices(true)}
+                                            className="mt-2 text-xs font-medium text-primary hover:underline"
+                                        >
+                                            Exibir todos ({services.length} serviços)
+                                        </button>
+                                    )}
+                                    
+                                    {showAllServices && services.length > 3 && (
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowAllServices(false)}
+                                            className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:underline"
+                                        >
+                                            Mostrar menos
+                                        </button>
+                                    )}
                                 </div>
 
-                                <hr className="border-zinc-200 dark:border-zinc-800" />
-
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="text-sm">
-                                        <p className="text-gray-500 dark:text-gray-400">Subtotal</p>
-                                        <p className="font-bold text-lg text-gray-800 dark:text-gray-100">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
+                                {/* Subtotal */}
+                                <div className="pt-2 border-t border-gray-200 dark:border-gray-800">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">Subtotal</p>
+                                        <p className="text-sm font-semibold text-gray-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
                                     </div>
-                                    <div className="text-sm">
-                                        <p className="text-gray-500 dark:text-gray-400">Desconto</p>
-                                        <p className="font-bold text-lg text-red-600 dark:text-red-500">- R$ {discountValue.toFixed(2).replace('.', ',')}</p>
-                                    </div>
-                                    <div className="text-sm">
-                                        <p className="text-gray-500 dark:text-gray-400">Total</p>
-                                        <p className="font-black text-xl text-primary">R$ {totalValue.toFixed(2).replace('.', ',')}</p>
-                                    </div>
+                                    
+                                    <label className="block">
+                                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Desconto (R$)</p>
+                                        <div className="relative">
+                                            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
+                                            <input 
+                                                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 pl-9 pr-3 text-sm font-normal text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20" 
+                                                placeholder="0,00"
+                                                value={discount}
+                                                onChange={(e) => setDiscount(e.target.value)}
+                                            />
+                                        </div>
+                                    </label>
                                 </div>
-
-                                <label className="flex flex-col">
-                                    <p className="text-gray-800 dark:text-gray-100 text-base font-medium leading-normal pb-2">Desconto (R$)</p>
-                                    <div className="relative">
-                                        <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-zinc-400 dark:text-[#b9a29d]">R$</span>
-                                        <input 
-                                            className="form-input w-full rounded-lg text-zinc-900 dark:text-white focus:outline-0 border border-zinc-300 dark:border-[#54403b] bg-background-light dark:bg-[#271e1c] h-12 pl-10 pr-4 text-base font-normal leading-normal" 
-                                            placeholder="0,00"
-                                            value={discount}
-                                            onChange={(e) => setDiscount(e.target.value)}
-                                        />
-                                    </div>
-                                </label>
-                            </>
+                            </div>
                         )}
+                        
                         {step === 2 && (
-                             <>
-                                <div className="p-4 rounded-lg bg-zinc-100 dark:bg-zinc-800/50 text-center">
-                                    <p className="text-sm text-zinc-600 dark:text-zinc-400">Total a Pagar</p>
+                            <div className="flex flex-col gap-4">
+                                {/* Total to Pay */}
+                                <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 text-center">
+                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Total a Pagar</p>
                                     <p className="text-3xl font-black text-primary">R$ {totalValue.toFixed(2).replace('.', ',')}</p>
                                 </div>
+
+                                {/* Payment Methods */}
                                 <div>
-                                    <p className="text-gray-800 dark:text-gray-100 text-base font-medium leading-normal pb-3">Formas de Pagamento</p>
-                                    <div className="space-y-4">
+                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase mb-3">Formas de Pagamento</p>
+                                    <div className="space-y-3">
                                     {payments.map((payment) => (
                                         <div key={payment.id} className="grid grid-cols-10 gap-2 items-center">
                                             <select 
                                                 value={payment.method}
                                                 onChange={e => handlePaymentChange(payment.id, 'method', e.target.value)}
-                                                className="col-span-10 sm:col-span-4 form-select h-12 w-full rounded-lg border border-gray-300 bg-gray-50 p-3 text-sm font-normal text-gray-900 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                className="col-span-10 sm:col-span-5 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs font-normal text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20"
                                             >
                                                 {paymentMethodOptions.map(m => <option key={m} value={m}>{m}</option>)}
                                             </select>
-                                            <div className="relative col-span-8 sm:col-span-5">
-                                                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-zinc-400 dark:text-[#b9a29d]">R$</span>
+                                            <div className="relative col-span-8 sm:col-span-4">
+                                                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
                                                 <input
                                                     type="text"
                                                     placeholder="0,00"
                                                     value={payment.amount}
                                                     onChange={e => handlePaymentChange(payment.id, 'amount', e.target.value)}
-                                                    className="form-input h-12 w-full rounded-lg border border-gray-300 bg-gray-50 pl-9 pr-2 text-base font-normal text-gray-900 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                    className="h-10 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 pl-9 pr-2 text-sm font-normal text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20"
                                                 />
                                             </div>
                                             {payments.length > 1 && (
-                                                <button type="button" onClick={() => handleRemovePayment(payment.id)} className="col-span-2 sm:col-span-1 flex h-12 w-full items-center justify-center rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-500/10 transition-colors">
-                                                    <span className="material-symbols-outlined">delete</span>
+                                                <button type="button" onClick={() => handleRemovePayment(payment.id)} className="col-span-2 sm:col-span-1 flex h-10 w-full items-center justify-center rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-500/10 transition-colors">
+                                                    <span className="material-symbols-outlined text-base">delete</span>
                                                 </button>
                                             )}
                                         </div>
                                     ))}
                                     {payments.length < 2 && (
-                                        <button type="button" onClick={handleAddPayment} className="flex items-center gap-2 text-sm font-medium text-primary hover:underline">
-                                            <span className="material-symbols-outlined">add_circle</span>
-                                            Adicionar outra forma de pagamento
+                                        <button type="button" onClick={handleAddPayment} className="flex items-center gap-2 text-xs font-medium text-primary hover:underline">
+                                            <span className="material-symbols-outlined text-base">add_circle</span>
+                                            <span>Adicionar outra forma</span>
                                         </button>
                                     )}
                                     </div>
                                 </div>
-                            </>
+                            </div>
                         )}
                     </div>
                     
-                    <div className="flex flex-col-reverse gap-3 border-t border-gray-200 p-5 sm:flex-row sm:justify-end dark:border-white/10">
+                    <div className="flex gap-2 border-t border-gray-200 p-4 dark:border-white/10 flex-wrap sm:flex-nowrap">
                         {step === 1 && (
                             <>
-                                <button type="button" onClick={onClose} className="flex h-11 items-center justify-center rounded-lg border border-gray-300 px-6 text-base font-medium text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:ring-offset-background-dark">Cancelar</button>
-                                <button type="button" onClick={handleNextStep} className="flex h-11 items-center justify-center rounded-lg bg-primary px-6 text-base font-medium text-white transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-background-dark">Continuar para Pagamento</button>
+                                <button type="button" onClick={onClose} className="flex-1 h-10 items-center justify-center rounded-lg border border-gray-300 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:ring-offset-background-dark flex">Cancelar</button>
+                                <button type="button" onClick={handleNextStep} className="flex-1 h-10 items-center justify-center rounded-lg bg-primary text-sm font-medium text-white transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-background-dark flex">Continuar</button>
                             </>
                         )}
                         {step === 2 && (
                             <>
-                                <button type="button" onClick={() => setStep(1)} className="flex h-11 items-center justify-center rounded-lg border border-gray-300 px-6 text-base font-medium text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:ring-offset-background-dark">Voltar</button>
-                                <button type="submit" className="flex h-11 items-center justify-center rounded-lg bg-primary px-6 text-base font-medium text-white transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-background-dark">Confirmar e Finalizar</button>
+                                <button type="button" onClick={() => setStep(1)} className="flex-1 h-10 items-center justify-center rounded-lg border border-gray-300 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:ring-offset-background-dark flex">Voltar</button>
+                                <button type="submit" className="flex-1 h-10 items-center justify-center rounded-lg bg-primary text-sm font-medium text-white transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-background-dark flex">Confirmar</button>
                             </>
                         )}
                     </div>

@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Appointment, AppointmentStatus, Transaction, PaymentMethod } from '../types.ts';
 import { generateDailySummary } from '../services/geminiService.ts';
 import { NewAppointmentModal } from './NewAppointmentModal.tsx';
-import { useAppointments, useTransactions } from '../contexts.tsx';
-import { FinalizeAppointmentModal } from './FinalizeAppointmentModal.tsx';
+import { useAppointments, useTransactions, useFinalizeAppointment, useNewAppointment } from '../contexts.tsx';
 
 const Icon = ({ name }: { name: string }) => <span className="material-symbols-outlined text-2xl text-zinc-500 dark:text-zinc-400">{name}</span>;
 
@@ -264,8 +264,6 @@ const StatCard = ({ icon, value, label }: { icon: string; value: string; label: 
 export const DashboardPage: React.FC = () => {
     const [summary, setSummary] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isNewAppointmentModalOpen, setIsNewAppointmentModalOpen] = useState(false);
-    const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
     const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
@@ -273,6 +271,9 @@ export const DashboardPage: React.FC = () => {
     
     const { appointments, addAppointment, updateAppointmentStatus, deleteAppointment } = useAppointments();
     const { transactions, addTransaction } = useTransactions();
+    const { setFinalizeData } = useFinalizeAppointment();
+    const { setNewAppointmentData } = useNewAppointment();
+    const navigate = useNavigate();
 
     const todayStats = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
@@ -314,17 +315,15 @@ export const DashboardPage: React.FC = () => {
         setIsLoading(false);
     }, [todayStats]);
 
-    const handleSaveAppointment = async (appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
-        await addAppointment(appointment);
-    };
-
     const handleOpenOptionsModal = (appointment: Appointment) => {
         setSelectedAppointment(appointment);
         setIsOptionsModalOpen(true);
     };
 
     const handleOpenFinalizeModal = () => {
-        setIsFinalizeModalOpen(true);
+        if (!selectedAppointment) return;
+        setFinalizeData(selectedAppointment, handleFinalizeAppointment);
+        navigate('/finalize-appointment');
     };
 
     const handleOpenEditModal = () => {
@@ -344,7 +343,6 @@ export const DashboardPage: React.FC = () => {
         } catch (error) {
             console.error('Failed to delete appointment:', error);
             setIsDeleteConfirmModalOpen(false);
-            // You could add an error message modal here if needed
         }
     };
 
@@ -354,12 +352,11 @@ export const DashboardPage: React.FC = () => {
         await Promise.all([
              addTransaction({
                 ...transactionData,
-                date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+                date: new Date().toISOString().split('T')[0],
             }),
             updateAppointmentStatus(selectedAppointment.id, AppointmentStatus.Attended)
         ]);
 
-        setIsFinalizeModalOpen(false);
         setSelectedAppointment(null);
     };
 
@@ -377,7 +374,13 @@ export const DashboardPage: React.FC = () => {
                         <span className="sm:hidden">{new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'short'})}</span>
                     </div>
                     <button 
-                        onClick={() => setIsNewAppointmentModalOpen(true)}
+                        onClick={() => {
+                            const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
+                                await addAppointment(appointmentData);
+                            };
+                            setNewAppointmentData(handleSaveAppointment, new Date().toISOString().split('T')[0]);
+                            navigate('/new-appointment');
+                        }}
                         className="flex w-full sm:w-auto cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] transition-transform active:scale-95">
                         <span className="material-symbols-outlined text-base">add</span>
                         <span className="truncate">Novo Agendamento</span>
@@ -443,12 +446,7 @@ export const DashboardPage: React.FC = () => {
                      )}
                  </div>
             </div>
-             <NewAppointmentModal 
-                isOpen={isNewAppointmentModalOpen} 
-                onClose={() => setIsNewAppointmentModalOpen(false)} 
-                onSave={handleSaveAppointment}
-            />
-            <AppointmentOptionsModal
+             <AppointmentOptionsModal
                 isOpen={isOptionsModalOpen}
                 onClose={() => setIsOptionsModalOpen(false)}
                 appointment={selectedAppointment}
@@ -464,12 +462,6 @@ export const DashboardPage: React.FC = () => {
             />
             {selectedAppointment && (
                 <>
-                    <FinalizeAppointmentModal
-                        isOpen={isFinalizeModalOpen}
-                        onClose={() => setIsFinalizeModalOpen(false)}
-                        onFinalize={handleFinalizeAppointment}
-                        appointment={selectedAppointment}
-                    />
                     <NewAppointmentModal 
                         isOpen={isEditModalOpen} 
                         onClose={() => {

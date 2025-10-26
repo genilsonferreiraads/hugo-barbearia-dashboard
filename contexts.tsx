@@ -320,3 +320,91 @@ export const AppointmentsProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     return <AppointmentsContext.Provider value={value}>{children}</AppointmentsContext.Provider>;
 };
+
+// --- FINALIZE APPOINTMENT CONTEXT ---
+interface FinalizeAppointmentContextType {
+    appointment: Appointment | null;
+    onFinalize: ((transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) | null;
+    setFinalizeData: (appointment: Appointment, onFinalize: (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) => void;
+    clearFinalizeData: () => void;
+}
+
+const FinalizeAppointmentContext = createContext<FinalizeAppointmentContextType | undefined>(undefined);
+
+export const useFinalizeAppointment = () => {
+    const context = useContext(FinalizeAppointmentContext);
+    if (!context) throw new Error('useFinalizeAppointment must be used within a FinalizeAppointmentProvider');
+    return context;
+};
+
+export const FinalizeAppointmentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [appointment, setAppointment] = useState<Appointment | null>(null);
+    const [onFinalize, setOnFinalize] = useState<((transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) | null>(null);
+
+    const setFinalizeData = useCallback((apt: Appointment, handler: (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) => {
+        setAppointment(apt);
+        setOnFinalize(() => handler);
+    }, []);
+
+    const clearFinalizeData = useCallback(() => {
+        setAppointment(null);
+        setOnFinalize(null);
+    }, []);
+
+    const value = useMemo(() => ({
+        appointment,
+        onFinalize,
+        setFinalizeData,
+        clearFinalizeData,
+    }), [appointment, onFinalize, setFinalizeData, clearFinalizeData]);
+
+    return (
+        <FinalizeAppointmentContext.Provider value={value}>
+            {children}
+        </FinalizeAppointmentContext.Provider>
+    );
+};
+
+// --- NEW APPOINTMENT CONTEXT ---
+interface NewAppointmentContextType {
+    onSave: ((appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>) | null;
+    initialDate: string | undefined;
+    setNewAppointmentData: (onSave: (appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>, initialDate?: string) => void;
+    clearNewAppointmentData: () => void;
+}
+
+const NewAppointmentContext = createContext<NewAppointmentContextType | undefined>(undefined);
+
+export const useNewAppointment = () => {
+    const context = useContext(NewAppointmentContext);
+    if (!context) throw new Error('useNewAppointment must be used within a NewAppointmentProvider');
+    return context;
+};
+
+export const NewAppointmentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [onSave, setOnSave] = useState<((appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>) | null>(null);
+    const [initialDate, setInitialDate] = useState<string | undefined>();
+
+    const setNewAppointmentData = useCallback((handler: (appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>, date?: string) => {
+        setOnSave(() => handler);
+        setInitialDate(date);
+    }, []);
+
+    const clearNewAppointmentData = useCallback(() => {
+        setOnSave(null);
+        setInitialDate(undefined);
+    }, []);
+
+    const value = useMemo(() => ({
+        onSave,
+        initialDate,
+        setNewAppointmentData,
+        clearNewAppointmentData,
+    }), [onSave, initialDate, setNewAppointmentData, clearNewAppointmentData]);
+
+    return (
+        <NewAppointmentContext.Provider value={value}>
+            {children}
+        </NewAppointmentContext.Provider>
+    );
+};

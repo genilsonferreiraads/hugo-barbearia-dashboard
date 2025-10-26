@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useServices, useTransactions } from '../contexts.tsx';
 import { Service, PaymentMethod } from '../types.ts';
+import { Toast, type ToastType } from './Toast.tsx';
 
 const paymentMethodOptions = Object.values(PaymentMethod);
 
@@ -10,6 +11,8 @@ type PaymentState = {
     amount: string;
 };
 
+const Icon = ({ name, className }: { name: string; className?: string }) => 
+    <span className={`material-symbols-outlined ${className || ''}`}>{name}</span>;
 
 export const ServiceRegistryPage: React.FC = () => {
   const { services } = useServices();
@@ -19,6 +22,8 @@ export const ServiceRegistryPage: React.FC = () => {
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: PaymentMethod.Pix, amount: '0,00' }]);
   const [discount, setDiscount] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   const subtotal = useMemo(() => {
     return selectedServices.reduce((acc, service) => acc + service.price, 0);
@@ -104,19 +109,23 @@ export const ServiceRegistryPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName || selectedServices.length === 0) {
-      alert("Por favor, preencha o nome do cliente e selecione ao menos um serviço.");
+      setToast({ message: "Por favor, preencha o nome do cliente e selecione ao menos um serviço.", type: 'error' });
       return;
     }
     
     const totalPaid = payments.reduce((acc, p) => acc + (parseFloat(p.amount.replace(',', '.')) || 0), 0);
     if (Math.abs(totalPaid - totalValue) > 0.01) {
-        alert(`O total pago (R$ ${totalPaid.toFixed(2)}) não corresponde ao valor final (R$ ${totalValue.toFixed(2)}). Ajuste os valores.`);
+        setToast({ 
+          message: `O total pago (R$ ${totalPaid.toFixed(2)}) não corresponde ao valor final (R$ ${totalValue.toFixed(2)}). Ajuste os valores.`, 
+          type: 'error' 
+        });
         return;
     }
 
     try {
+        setIsSubmitting(true);
         await addTransaction({
-            date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            date: new Date().toISOString().split('T')[0],
             clientName,
             service: selectedServices.map(s => s.name).join(', '),
             paymentMethod: payments.map(p => p.method).join(', '),
@@ -125,206 +134,291 @@ export const ServiceRegistryPage: React.FC = () => {
             value: totalValue,
         });
 
-        alert(`Atendimento finalizado para ${clientName}!`);
+        setToast({ message: `Atendimento finalizado para ${clientName}!`, type: 'success' });
         handleClear();
     } catch (error: any) {
         console.error("Failed to register service:", error);
-        alert(`Falha ao registrar atendimento: ${error.message || 'Erro desconhecido.'}`);
+        setToast({ 
+          message: `Falha ao registrar atendimento: ${error.message || 'Erro desconhecido.'}`, 
+          type: 'error' 
+        });
+    } finally {
+        setIsSubmitting(false);
     }
   };
+
+  const progressPercentage = (currentStep / 2) * 100;
   
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="mb-8 sm:mb-10 lg:mb-12 mt-4 sm:mt-6">
-        <h1 className="text-zinc-900 dark:text-white text-2xl sm:text-3xl lg:text-4xl font-black leading-tight tracking-[-0.033em]">Registro de Atendimento Avulso</h1>
-        <p className="text-zinc-500 dark:text-[#b9a29d] text-sm sm:text-base font-normal leading-normal">Para clientes que chegam sem hora marcada.</p>
-      </div>
-      
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-[#181211]/60 rounded-xl shadow-lg p-4 sm:p-6 lg:p-8 pb-6 sm:pb-8">
-        {/* Progress Steps */}
-        <div className="flex items-center justify-center mb-8">
-          <div className="flex items-center space-x-4">
-            {[1, 2].map((step) => (
-              <div key={step} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step <= currentStep 
-                    ? 'bg-primary text-white' 
-                    : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400'
-                }`}>
-                  {step}
-                </div>
-                {step < 2 && (
-                  <div className={`w-12 h-0.5 mx-2 ${
-                    step < currentStep ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'
-                  }`} />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Step 1: Client Information and Services */}
-        {currentStep === 1 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold mb-4">Cliente e Serviços</h2>
-              <label className="flex flex-col mb-6">
-                <p className="text-zinc-900 dark:text-white text-sm sm:text-base font-medium leading-normal pb-2">Nome do Cliente</p>
-                <input 
-                  autoFocus 
-                  className="form-input w-full rounded-lg text-zinc-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-zinc-300 dark:border-[#54403b] bg-background-light dark:bg-[#271e1c] focus:border-primary dark:focus:border-primary h-12 placeholder:text-zinc-400 dark:placeholder:text-[#b9a29d] px-4 text-base font-normal leading-normal" 
-                  placeholder="Digite o nome do cliente" 
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                />
-              </label>
-              
-              <div>
-                <p className="text-zinc-900 dark:text-white text-sm sm:text-base font-medium leading-normal pb-3">Serviços Realizados</p>
-                <div className="flex gap-2 sm:gap-3 flex-wrap mb-6">
-                  {services.map(service => {
-                    const isSelected = selectedServices.some(s => s.id === service.id);
-                    return (
-                      <button 
-                        key={service.id}
-                        type="button"
-                        onClick={() => handleServiceToggle(service)}
-                        className={`flex h-8 sm:h-9 shrink-0 items-center justify-center gap-x-2 rounded-lg px-3 sm:px-4 transition-colors ${
-                          isSelected
-                            ? 'bg-primary text-white'
-                            : 'bg-zinc-200 dark:bg-[#392c28] text-zinc-700 dark:text-white hover:bg-zinc-300 dark:hover:bg-[#54403b]'
-                        }`}
-                      >
-                        <p className="text-xs sm:text-sm font-medium leading-normal">{service.name}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Total Value Display */}
-              {selectedServices.length > 0 && (
-                <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-lg p-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-700 dark:text-zinc-300 font-medium">Total dos Serviços:</span>
-                    <span className="text-xl font-bold text-primary">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end">
-              <button 
-                type="button"
-                onClick={handleNextStep}
-                disabled={!clientName.trim() || selectedServices.length === 0}
-                className="h-12 px-6 rounded-lg bg-primary text-white font-medium text-sm hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors"
-              >
-                Próximo
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Payment */}
-        {currentStep === 2 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold mb-4">Pagamento</h2>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 mb-6">
-                <div className="text-sm">
-                  <p className="text-gray-500 dark:text-gray-400">Subtotal</p>
-                  <p className="font-bold text-lg text-gray-800 dark:text-gray-100">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
-                </div>
-                <div className="text-sm">
-                  <p className="text-gray-500 dark:text-gray-400">Desconto</p>
-                  <p className="font-bold text-lg text-red-600 dark:text-red-500">- R$ {discountValue.toFixed(2).replace('.', ',')}</p>
-                </div>
-                <div className="text-sm">
-                  <p className="text-gray-500 dark:text-gray-400">Total a Pagar</p>
-                  <p className="font-black text-xl text-primary">R$ {totalValue.toFixed(2).replace('.', ',')}</p>
-                </div>
-              </div>
-              
-              <label className="flex flex-col mb-6">
-                <p className="text-zinc-900 dark:text-white text-sm sm:text-base font-medium leading-normal pb-2">Desconto (R$)</p>
-                <div className="relative max-w-xs">
-                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-zinc-400 dark:text-[#b9a29d]">R$</span>
-                  <input 
-                    className="form-input w-full rounded-lg text-zinc-900 dark:text-white focus:outline-0 border border-zinc-300 dark:border-[#54403b] bg-background-light dark:bg-[#271e1c] h-12 pl-10 pr-4 text-base font-normal leading-normal" 
-                    placeholder="0,00"
-                    value={discount}
-                    onChange={(e) => setDiscount(e.target.value)}
-                  />
-                </div>
-              </label>
-
-              <div>
-                <p className="text-zinc-900 dark:text-white text-sm sm:text-base font-medium leading-normal pb-3">Forma de Pagamento</p>
-                <div className="space-y-3">
-                  {payments.map((payment) => (
-                    <div key={payment.id} className="grid grid-cols-10 gap-2 items-center">
-                      <select 
-                        value={payment.method}
-                        onChange={e => handlePaymentChange(payment.id, 'method', e.target.value)}
-                        className="col-span-10 sm:col-span-4 form-select h-10 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-normal text-gray-900 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                      >
-                        {paymentMethodOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                      <div className="relative col-span-8 sm:col-span-5">
-                        <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-zinc-400 dark:text-[#b9a29d]">R$</span>
-                        <input
-                          type="text"
-                          placeholder="0,00"
-                          value={payment.amount}
-                          onChange={e => handlePaymentChange(payment.id, 'amount', e.target.value)}
-                          className="form-input h-10 w-full rounded-lg border border-gray-300 bg-gray-50 pl-9 pr-2 text-sm font-normal text-gray-900 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                        />
-                      </div>
-                      {payments.length > 1 && (
-                        <button type="button" onClick={() => handleRemovePayment(payment.id)} className="col-span-2 sm:col-span-1 flex h-10 w-full items-center justify-center rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-500/10 transition-colors">
-                          <span className="material-symbols-outlined">delete</span>
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {payments.length < 2 && (
-                    <button type="button" onClick={handleAddPayment} className="flex items-center gap-2 text-sm font-medium text-primary hover:underline">
-                      <span className="material-symbols-outlined">add_circle</span>
-                      Adicionar outra forma de pagamento
+    <div className="min-h-screen bg-gradient-to-br from-background-light to-gray-50 dark:from-background-dark dark:to-gray-900 flex flex-col">
+        {/* Header with Progress */}
+        <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm">
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3">
+                <div className="flex items-center justify-between mb-4">
+                    <button 
+                        onClick={handleClear}
+                        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-sm"
+                    >
+                        <Icon name="refresh" className="text-lg" />
+                        <span className="text-xs font-medium">Limpar</span>
                     </button>
-                  )}
+                    
+                    <div className="text-center">
+                        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Atendimento Avulso</h1>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Passo {currentStep} de 2</p>
+                    </div>
+                    
+                    <div className="w-16" />
                 </div>
-              </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                        className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
+                        style={{ width: `${progressPercentage}%` }}
+                    />
+                </div>
             </div>
-            
-            <div className="flex justify-between">
-              <button 
-                type="button"
-                onClick={handlePrevStep}
-                className="h-12 px-6 rounded-lg font-medium text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              >
-                Voltar
-              </button>
-              <div className="flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={handleClear} 
-                  className="h-12 px-6 rounded-lg font-medium text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  Limpar
-                </button>
-                <button 
-                  type="submit" 
-                  className="h-12 px-8 rounded-lg bg-primary text-white font-medium text-sm hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
-                >
-                  Finalizar Atendimento
-                </button>
-              </div>
-            </div>
-          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 max-w-2xl w-full mx-auto px-4 sm:px-6 py-6">
+            <form onSubmit={handleSubmit}>
+                {/* Step 1: Client and Services */}
+                {currentStep === 1 && (
+                    <div className="space-y-5 animate-fade-in">
+                        {/* Client Name */}
+                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
+                            <label className="block space-y-2">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white">Nome do Cliente</p>
+                                <input 
+                                    type="text"
+                                    required
+                                    autoFocus
+                                    className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                    placeholder="Digite o nome do cliente"
+                                    value={clientName}
+                                    onChange={(e) => setClientName(e.target.value)}
+                                />
+                            </label>
+                        </div>
+
+                        {/* Services */}
+                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
+                            <div className="flex items-baseline justify-between">
+                                <div>
+                                    <h3 className="text-base font-bold text-gray-900 dark:text-white">Serviços</h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        {selectedServices.length} serviço{selectedServices.length !== 1 ? 's' : ''} selecionado{selectedServices.length !== 1 ? 's' : ''}
+                                    </p>
+                                </div>
+                                <p className="text-2xl font-bold text-primary">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                {services.map(service => {
+                                    const isSelected = selectedServices.some(s => s.id === service.id);
+                                    return (
+                                        <button 
+                                            key={service.id}
+                                            type="button"
+                                            onClick={() => handleServiceToggle(service)}
+                                            className={`p-2 rounded-lg border-2 transition-all text-sm ${
+                                                isSelected
+                                                    ? 'bg-primary/10 border-primary'
+                                                    : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                                                    isSelected
+                                                        ? 'bg-primary border-primary'
+                                                        : 'border-gray-300 dark:border-gray-600'
+                                                }`}>
+                                                    {isSelected && <Icon name="check" className="text-white text-xs" />}
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className="font-semibold text-gray-900 dark:text-white text-xs">{service.name}</p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400">R$ {service.price.toFixed(2).replace('.', ',')}</p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 2: Payment */}
+                {currentStep === 2 && (
+                    <div className="space-y-5 animate-fade-in">
+                        {/* Total Card */}
+                        <div className="bg-gradient-to-br from-primary/15 to-primary/5 dark:from-primary/20 dark:to-primary/10 rounded-lg p-6 border border-primary/30 text-center">
+                            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Total a Pagar</p>
+                            <p className="text-4xl font-bold text-primary mb-3">R$ {totalValue.toFixed(2).replace('.', ',')}</p>
+                            <div className="flex justify-center gap-4 text-xs">
+                                <div>
+                                    <p className="text-gray-600 dark:text-gray-400">Subtotal</p>
+                                    <p className="font-bold text-gray-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
+                                </div>
+                                <div className="w-px bg-gray-300 dark:bg-gray-600" />
+                                <div>
+                                    <p className="text-gray-600 dark:text-gray-400">Desconto</p>
+                                    <p className="font-bold text-gray-900 dark:text-white">R$ {discountValue.toFixed(2).replace('.', ',')}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Discount Field */}
+                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                            <label className="block space-y-2">
+                                <p className="text-xs font-semibold text-gray-900 dark:text-white">Desconto (Opcional - R$)</p>
+                                <div className="relative">
+                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400 text-sm font-medium">R$</span>
+                                    <input 
+                                        type="text"
+                                        className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 pl-10 pr-3 text-sm font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all" 
+                                        placeholder="0,00"
+                                        value={discount}
+                                        onChange={(e) => setDiscount(e.target.value)}
+                                    />
+                                </div>
+                            </label>
+                        </div>
+
+                        {/* Payment Methods */}
+                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
+                            <h3 className="text-base font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
+                            
+                            <div className="space-y-3">
+                                {payments.map((payment, index) => (
+                                    <div key={payment.id} className="space-y-3">
+                                        {payments.length > 1 && (
+                                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pagamento {index + 1}</p>
+                                        )}
+                                        
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-gray-900 dark:text-white block">Método</label>
+                                                <select 
+                                                    value={payment.method}
+                                                    onChange={e => handlePaymentChange(payment.id, 'method', e.target.value)}
+                                                    className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                                >
+                                                    {paymentMethodOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                                                </select>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-gray-900 dark:text-white block">Valor</label>
+                                                <div className="relative">
+                                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="0,00"
+                                                        value={payment.amount}
+                                                        onChange={e => handlePaymentChange(payment.id, 'amount', e.target.value)}
+                                                        className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-10 pr-3 text-xs font-semibold text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {payments.length > 1 && (
+                                            <div className="flex justify-end">
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => handleRemovePayment(payment.id)} 
+                                                    className="flex items-center gap-1 text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium transition-colors text-sm"
+                                                >
+                                                    <Icon name="delete" className="text-base" />
+                                                    <span>Remover</span>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {payments.length < 2 && (
+                                <button 
+                                    type="button" 
+                                    onClick={handleAddPayment} 
+                                    className="w-full py-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-primary font-semibold hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors flex items-center justify-center gap-2 text-sm"
+                                >
+                                    <Icon name="add_circle" className="text-lg" />
+                                    <span>Adicionar outra forma</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="mt-8 flex gap-3 sm:justify-end flex-wrap sm:flex-nowrap">
+                    {currentStep === 1 && (
+                        <button 
+                            type="button" 
+                            onClick={handleNextStep}
+                            disabled={!clientName.trim() || selectedServices.length === 0}
+                            className="flex-1 sm:flex-auto px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                        >
+                            <span>Continuar</span>
+                            <Icon name="arrow_forward" className="text-base" />
+                        </button>
+                    )}
+                    {currentStep === 2 && (
+                        <>
+                            <button 
+                                type="button" 
+                                onClick={handlePrevStep}
+                                className="flex-1 sm:flex-auto px-6 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm"
+                            >
+                                <Icon name="arrow_back" className="text-base" />
+                                <span>Voltar</span>
+                            </button>
+                            <button 
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="flex-1 sm:flex-auto px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <span className="animate-spin">⏳</span>
+                                        <span>Finalizando...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Icon name="check_circle" className="text-base" />
+                                        <span>Confirmar</span>
+                                    </>
+                                )}
+                            </button>
+                        </>
+                    )}
+                </div>
+            </form>
+        </main>
+
+        {toast && (
+            <Toast 
+                message={toast.message} 
+                type={toast.type}
+                duration={4000}
+                onClose={() => setToast(null)}
+            />
         )}
-      </form>
+
+        <style>{`
+            @keyframes fade-in {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .animate-fade-in {
+                animation: fade-in 0.3s ease-out;
+            }
+        `}</style>
     </div>
   );
 };

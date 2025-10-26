@@ -109,7 +109,13 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
         const normalizedSelectedTime = normalizeTime(selectedTime);
         const isPast = isTimeInPast(selectedDate, selectedTime);
         const isBooked = appointments.some(
-            apt => apt.date === selectedDate && normalizeTime(apt.time) === normalizedSelectedTime
+            apt => {
+                // Exclude the appointment being edited from the availability check
+                if (initialAppointment && apt.id === initialAppointment.id) {
+                    return false;
+                }
+                return apt.date === selectedDate && normalizeTime(apt.time) === normalizedSelectedTime;
+            }
         );
         return !isPast && !isBooked;
     };

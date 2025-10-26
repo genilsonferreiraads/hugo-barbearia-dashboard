@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { NewAppointmentModal } from './NewAppointmentModal.tsx';
-import { FinalizeAppointmentModal } from './FinalizeAppointmentModal.tsx';
-import { useAppointments, useTransactions } from '../contexts.tsx';
+import { useNavigate } from 'react-router-dom';
+import { useAppointments, useTransactions, useFinalizeAppointment, useNewAppointment } from '../contexts.tsx';
 import { Appointment, AppointmentStatus, Transaction } from '../types.ts';
 
 // --- Date Helper Functions ---
@@ -75,13 +74,14 @@ const extractClientName = (clientName: string): string => {
 };
 
 export const SchedulePage: React.FC = () => {
+    const navigate = useNavigate();
     const [view, setView] = useState('Semana');
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
     const { appointments, addAppointment, updateAppointmentStatus } = useAppointments();
     const { addTransaction } = useTransactions();
+    const { setFinalizeData } = useFinalizeAppointment();
+    const { setNewAppointmentData } = useNewAppointment();
 
     const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
         await addAppointment(appointmentData);
@@ -89,23 +89,20 @@ export const SchedulePage: React.FC = () => {
 
     const handleAppointmentClick = (appointment: Appointment) => {
         if (appointment.status === AppointmentStatus.Attended) return;
-        setSelectedAppointment(appointment);
-        setIsFinalizeModalOpen(true);
-    };
-
-    const handleFinalizeAppointment = async (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => {
-        if (!selectedAppointment) return;
-
-        await Promise.all([
-            addTransaction({
-                ...transactionData,
-                date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-            }),
-            updateAppointmentStatus(selectedAppointment.id, AppointmentStatus.Attended)
-        ]);
-
-        setIsFinalizeModalOpen(false);
-        setSelectedAppointment(null);
+        
+        // Set the finalize data in context
+        const onFinalizeHandler = async (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => {
+            await Promise.all([
+                addTransaction({
+                    ...transactionData,
+                    date: new Date().toISOString().split('T')[0],
+                }),
+                updateAppointmentStatus(appointment.id, AppointmentStatus.Attended)
+            ]);
+        };
+        
+        setFinalizeData(appointment, onFinalizeHandler);
+        navigate('/finalize-appointment');
     };
 
     const handlePrev = () => {
@@ -265,7 +262,10 @@ export const SchedulePage: React.FC = () => {
             <header className="flex flex-wrap justify-between items-center gap-4 mb-6 sm:mb-8 mt-4 sm:mt-6">
                 <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tighter">Agenda</h1>
                 <button 
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => {
+                        setNewAppointmentData(handleSaveAppointment, formatDateYYYYMMDD(currentDate));
+                        navigate('/new-appointment');
+                    }}
                     className="flex items-center gap-2 bg-primary text-white font-semibold py-2 sm:py-2.5 px-3 sm:px-5 rounded-lg shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/50 dark:focus:ring-offset-background-dark transition-colors text-sm sm:text-base">
                     <span className="material-symbols-outlined text-base sm:text-lg">add</span>
                     <span className="hidden sm:inline">Novo Agendamento</span>
@@ -301,22 +301,6 @@ export const SchedulePage: React.FC = () => {
             <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50">
                 {view === 'Semana' ? renderWeekView() : renderDayView()}
             </div>
-            
-            <NewAppointmentModal 
-                isOpen={isModalOpen} 
-                onClose={() => setIsModalOpen(false)} 
-                onSave={handleSaveAppointment}
-                initialDate={formatDateYYYYMMDD(currentDate)}
-            />
-            
-            {selectedAppointment && (
-                <FinalizeAppointmentModal
-                    isOpen={isFinalizeModalOpen}
-                    onClose={() => setIsFinalizeModalOpen(false)}
-                    onFinalize={handleFinalizeAppointment}
-                    appointment={selectedAppointment}
-                />
-            )}
         </div>
     );
 };
