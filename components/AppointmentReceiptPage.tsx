@@ -46,40 +46,44 @@ export const AppointmentReceiptPage: React.FC = () => {
                 quality: 1,
             });
 
-            // Convert canvas to blob
+            // Get client info
+            const clientNameOnly = appointment.clientName.split('|')[0];
+
+            // Save to blob
             canvas.toBlob(async (blob) => {
-                if (!blob) return;
+                if (!blob) {
+                    alert('Erro ao gerar a imagem');
+                    setIsGenerating(false);
+                    return;
+                }
 
-                const clientPhone = appointment.clientName.includes('|') 
-                    ? appointment.clientName.split('|')[1].replace(/\D/g, '') 
-                    : '';
+                // Check if it's mobile
+                const isMobile = /iPhone|iPad|Android|Mobile/.test(navigator.userAgent);
 
-                // Get client name without phone
-                const clientNameOnly = appointment.clientName.split('|')[0];
-
-                // Check if Web Share API is available (mobile)
-                if (navigator.share && navigator.canShare) {
+                if (isMobile && navigator.share) {
+                    // Mobile: Use native share
                     try {
                         const file = new File([blob], `comprovante-${clientNameOnly}.png`, { type: 'image/png' });
                         
                         await navigator.share({
                             files: [file],
                             title: 'Comprovante de Agendamento',
-                            text: `Olá! 👋\n\nSeu agendamento foi confirmado! ✅\n\n📅 Data: ${appointment.date}\n⏰ Horário: ${appointment.time}\n\nComprovante em anexo.`
+                            text: `Agendamento confirmado! 📅 ${appointment.date} - ⏰ ${appointment.time}`
                         });
-                        
-                        setIsGenerating(false);
+
                         setTimeout(() => {
+                            setIsGenerating(false);
                             onClose();
                         }, 500);
                     } catch (error: any) {
+                        // User canceled or error
                         if (error.name !== 'AbortError') {
                             console.error('Erro ao compartilhar:', error);
                         }
                         setIsGenerating(false);
                     }
                 } else {
-                    // Fallback for desktop: download and open WhatsApp
+                    // Desktop: Download
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
@@ -89,16 +93,8 @@ export const AppointmentReceiptPage: React.FC = () => {
                     document.body.removeChild(link);
                     URL.revokeObjectURL(url);
 
-                    if (clientPhone) {
-                        const message = `Olá! 👋\n\nSeu agendamento foi confirmado! ✅\n\n📅 Data: ${appointment.date}\n⏰ Horário: ${appointment.time}\n\nA imagem do comprovante foi salva. Compartilhe-a no chat quando abrir o WhatsApp! 📸`;
-                        const whatsappUrl = `https://wa.me/55${clientPhone}?text=${encodeURIComponent(message)}`;
-                        window.open(whatsappUrl, '_blank');
-                    }
-
-                    setTimeout(() => {
-                        setIsGenerating(false);
-                        onClose();
-                    }, 500);
+                    setIsGenerating(false);
+                    onClose();
                 }
             }, 'image/png');
         } catch (error) {
