@@ -58,26 +58,57 @@ export const AppointmentReceiptPage: React.FC = () => {
                 }
 
                 try {
-                    const file = new File([blob], `comprovante-${clientNameOnly}.png`, { type: 'image/png' });
-                    
-                    // Use native share
-                    await navigator.share({
-                        files: [file],
-                        title: 'Comprovante de Agendamento',
-                        text: `Agendamento confirmado! 📅 ${appointment.date} - ⏰ ${appointment.time}`
-                    });
+                    // Try native share first
+                    try {
+                        const file = new File([blob], `comprovante-${clientNameOnly}.png`, { type: 'image/png' });
+                        await navigator.share({
+                            files: [file],
+                            title: 'Comprovante de Agendamento',
+                            text: `Agendamento confirmado! 📅 ${appointment.date} - ⏰ ${appointment.time}`
+                        });
+                        setIsGenerating(false);
+                        onClose();
+                        return;
+                    } catch (shareError: any) {
+                        console.log('Native share not available, using fallback:', shareError.message);
+                    }
 
+                    // Fallback for iOS Safari: use blob URL
+                    const blobUrl = URL.createObjectURL(blob);
+                    
+                    // Create a link that can be shared
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = `comprovante-${clientNameOnly}.png`;
+                    
+                    // Try to open in a new way
+                    if (/iPhone|iPad/.test(navigator.userAgent)) {
+                        // For iOS: open in new tab so user can share from there
+                        const newWindow = window.open();
+                        if (newWindow) {
+                            const img = newWindow.document.createElement('img');
+                            img.src = blobUrl;
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            newWindow.document.body.appendChild(img);
+                            newWindow.document.body.style.margin = '0';
+                            newWindow.document.body.style.padding = '10px';
+                            newWindow.document.body.style.backgroundColor = '#000';
+                        }
+                    } else {
+                        // For Android and desktop: download
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }
+                    
+                    URL.revokeObjectURL(blobUrl);
                     setIsGenerating(false);
                     onClose();
                 } catch (error: any) {
-                    // User canceled - just close
-                    if (error.name === 'AbortError') {
-                        setIsGenerating(false);
-                    } else {
-                        console.error('Erro ao compartilhar:', error);
-                        alert('Não foi possível compartilhar. Tente novamente.');
-                        setIsGenerating(false);
-                    }
+                    console.error('Error:', error);
+                    alert('Erro ao compartilhar. Tente novamente.');
+                    setIsGenerating(false);
                 }
             }, 'image/png');
         } catch (error) {
