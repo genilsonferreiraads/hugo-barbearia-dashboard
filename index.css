@@ -17,17 +17,102 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d43811;
+  background: #8B0000;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #b8320f;
+  background: #600000;
 }
 
 /* Utility classes */
 .transition-all {
   transition: all 0.3s ease;
+}
+
+/* Logo zoom animation */
+@keyframes logo-zoom {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Background animation */
+@keyframes background-motion {
+  0% {
+    background-size: 110%;
+    background-position: 0% 0%;
+  }
+  50% {
+    background-size: 120%;
+    background-position: 2% 2%;
+  }
+  100% {
+    background-size: 110%;
+    background-position: 0% 0%;
+  }
+}
+
+.animated-background {
+  animation: background-motion 15s ease-in-out infinite;
+}
+
+/* Login screen animations */
+@keyframes slide-up-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down-fade-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+}
+
+.login-enter {
+  animation: slide-up-fade-in 0.6s ease-out;
+}
+
+.login-exit {
+  animation: slide-down-fade-out 0.6s ease-out;
+}
+
+.login-screen {
+  position: relative;
+}
+
+.login-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: inherit;
+  background-size: inherit;
+  background-position: inherit;
+  background-attachment: fixed;
+  animation: background-motion 15s ease-in-out infinite;
+  z-index: -1;
+}
+
+.logo-zoom {
+  animation: logo-zoom 0.6s ease-out;
+  cursor: pointer;
 }
 
 .shadow-custom {

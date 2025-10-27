@@ -21,6 +21,12 @@ export const Layout: React.FC = () => {
     const navigate = useNavigate();
     const { signOut, user } = useAuth();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [avatarZoom, setAvatarZoom] = useState(false);
+
+    const handleAvatarClick = () => {
+        setAvatarZoom(true);
+        setTimeout(() => setAvatarZoom(false), 600);
+    };
 
     const handleLogout = async () => {
         await signOut();
@@ -65,7 +71,7 @@ export const Layout: React.FC = () => {
             } lg:translate-x-0 lg:relative lg:z-auto`}>
                 <div className="flex flex-col gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" style={{ backgroundImage: `url("https://picsum.photos/id/1060/100/100")` }}></div>
+                        <div className={`bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ${avatarZoom ? 'logo-zoom' : ''}`} style={{ backgroundImage: `url("/imagens/logo-barbearia.JPG")`, backgroundSize: "120%" }} onClick={handleAvatarClick}></div>
                         <div className="flex flex-col">
                             <h1 className="text-white text-base font-medium leading-normal">Hugo Barbearia</h1>
                             <p className="text-[#b9a29d] text-sm font-normal leading-normal">

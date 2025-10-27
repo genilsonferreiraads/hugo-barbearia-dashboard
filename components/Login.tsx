@@ -10,8 +10,15 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [logoZoom, setLogoZoom] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
   const navigate = useNavigate();
   const { signIn } = useAuth();
+
+  const handleLogoClick = () => {
+    setLogoZoom(true);
+    setTimeout(() => setLogoZoom(false), 600);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +30,12 @@ export const LoginPage: React.FC = () => {
       if (error) {
         setError('Email ou senha incorretos');
       } else {
-        navigate('/dashboard');
+        // Trigger exit animation
+        setIsExiting(true);
+        // Wait for animation to finish before navigating
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 600);
       }
     } catch (err) {
       setError('Erro ao fazer login. Tente novamente.');
@@ -37,12 +49,14 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col items-center justify-center bg-cover bg-center bg-no-repeat p-4" style={{ backgroundImage: "url('https://picsum.photos/id/1062/1920/1080')" }}>
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
+    <div className={`relative flex min-h-screen w-full flex-col items-center justify-center bg-cover bg-center bg-no-repeat p-4 login-screen ${isExiting ? 'login-exit' : 'login-enter'}`} style={{ backgroundImage: "url('/imagens/plano-de-fundo-login.png')" }}>
+      <div className="absolute inset-0 bg-black/40"></div>
       <main className="relative z-10 flex w-full max-w-md flex-col items-center">
-        <h1 className="mb-6 text-4xl font-bold text-white tracking-wider">HUGO BARBEARIA</h1>
-        <div className="w-full rounded-xl bg-[#271e1c]/80 p-8 shadow-2xl border border-white/10">
-          <h2 className="text-white tracking-light text-center text-[28px] font-bold leading-tight pb-6">Acesse o Sistema</h2>
+        <div className="w-full rounded-xl bg-[#1a1a1a]/95 p-8 shadow-2xl border border-white/10">
+          <div className="flex flex-col items-center mb-4">
+            <div className={`w-14 h-14 mb-3 rounded-full overflow-hidden border-3 border-white/20 shadow-lg ${logoZoom ? 'logo-zoom' : ''}`} style={{ backgroundImage: `url("/imagens/logo-barbearia.JPG")`, backgroundSize: "cover", backgroundPosition: "center" }} onClick={handleLogoClick}></div>
+            <h2 className="text-white tracking-light text-center text-[24px] font-bold leading-tight">Acesse o Sistema</h2>
+          </div>
           <form className="flex flex-col gap-5" onSubmit={handleLogin}>
             {error && (
               <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-200 text-sm">

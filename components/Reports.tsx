@@ -102,7 +102,7 @@ export const ReportsPage: React.FC = () => {
                                 }}
                                 cursor={{ fill: 'rgba(212, 56, 17, 0.1)' }}
                             />
-                            <Bar dataKey="revenue" fill="#d43811" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="revenue" fill="#8B0000" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
