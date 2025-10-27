@@ -165,7 +165,7 @@ export const EditAppointmentPage: React.FC<EditAppointmentPageProps> = ({ onSave
             setIsSubmitting(true);
             await onSave({
                 clientName: whatsapp ? `${clientName}|${whatsapp.replace(/\D/g, '')}` : clientName,
-                service: 'Aguardando atendimento',
+                service: '',
                 date,
                 time,
             });

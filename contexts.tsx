@@ -177,6 +177,8 @@ export const ServicesProvider: React.FC<{children: React.ReactNode}> = ({ childr
 interface TransactionsContextType {
     transactions: Transaction[];
     addTransaction: (transaction: Omit<Transaction, 'id' | 'created_at'>) => Promise<void>;
+    updateTransaction: (id: number, updates: Partial<Omit<Transaction, 'id' | 'created_at'>>) => Promise<void>;
+    deleteTransaction: (id: number) => Promise<void>;
 }
 const TransactionsContext = createContext<TransactionsContextType | undefined>(undefined);
 
@@ -229,7 +231,34 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     }, []);
 
-    const value = useMemo(() => ({ transactions, addTransaction }), [transactions, addTransaction]);
+    const updateTransaction = useCallback(async (id: number, updates: Partial<Omit<Transaction, 'id' | 'created_at'>>) => {
+        const updateData: Record<string, any> = {};
+        if (updates.clientName !== undefined) updateData.clientname = updates.clientName;
+        if (updates.service !== undefined) updateData.service = updates.service;
+        if (updates.date !== undefined) updateData.date = updates.date;
+        if (updates.paymentMethod !== undefined) updateData.paymentmethod = updates.paymentMethod;
+        if (updates.subtotal !== undefined) updateData.subtotal = updates.subtotal;
+        if (updates.discount !== undefined) updateData.discount = updates.discount;
+        if (updates.value !== undefined) updateData.value = updates.value;
+
+        const { error } = await supabase.from('transactions').update(updateData).eq('id', id);
+        if (error) {
+            console.error('Error updating transaction:', error);
+            throw error;
+        }
+        setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    }, []);
+
+    const deleteTransaction = useCallback(async (id: number) => {
+        const { error } = await supabase.from('transactions').delete().eq('id', id);
+        if (error) {
+            console.error('Error deleting transaction:', error);
+            throw error;
+        }
+        setTransactions(prev => prev.filter(t => t.id !== id));
+    }, []);
+
+    const value = useMemo(() => ({ transactions, addTransaction, updateTransaction, deleteTransaction }), [transactions, addTransaction, updateTransaction, deleteTransaction]);
 
     return <TransactionsContext.Provider value={value}>{children}</TransactionsContext.Provider>;
 }
@@ -325,7 +354,8 @@ export const AppointmentsProvider: React.FC<{ children: React.ReactNode }> = ({ 
 interface FinalizeAppointmentContextType {
     appointment: Appointment | null;
     onFinalize: ((transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) | null;
-    setFinalizeData: (appointment: Appointment, onFinalize: (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) => void;
+    redirectTo: string | null;
+    setFinalizeData: (appointment: Appointment, onFinalize: (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>, redirectTo?: string) => void;
     clearFinalizeData: () => void;
 }
 
@@ -340,28 +370,76 @@ export const useFinalizeAppointment = () => {
 export const FinalizeAppointmentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [appointment, setAppointment] = useState<Appointment | null>(null);
     const [onFinalize, setOnFinalize] = useState<((transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) | null>(null);
+    const [redirectTo, setRedirectTo] = useState<string | null>(null);
 
-    const setFinalizeData = useCallback((apt: Appointment, handler: (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) => {
+    const setFinalizeData = useCallback((apt: Appointment, handler: (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>, redirect?: string) => {
         setAppointment(apt);
         setOnFinalize(() => handler);
+        setRedirectTo(redirect || null);
     }, []);
 
     const clearFinalizeData = useCallback(() => {
         setAppointment(null);
         setOnFinalize(null);
+        setRedirectTo(null);
     }, []);
 
     const value = useMemo(() => ({
         appointment,
         onFinalize,
+        redirectTo,
         setFinalizeData,
         clearFinalizeData,
-    }), [appointment, onFinalize, setFinalizeData, clearFinalizeData]);
+    }), [appointment, onFinalize, redirectTo, setFinalizeData, clearFinalizeData]);
 
     return (
         <FinalizeAppointmentContext.Provider value={value}>
             {children}
         </FinalizeAppointmentContext.Provider>
+    );
+};
+
+// --- EDIT TRANSACTION CONTEXT ---
+interface EditTransactionContextType {
+    transaction: Transaction | null;
+    onSave: ((updates: Partial<Omit<Transaction, 'id' | 'created_at'>>) => Promise<void>) | null;
+    setEditTransactionData: (transaction: Transaction, onSave: (updates: Partial<Omit<Transaction, 'id' | 'created_at'>>) => Promise<void>) => void;
+    clearEditTransactionData: () => void;
+}
+
+const EditTransactionContext = createContext<EditTransactionContextType | undefined>(undefined);
+
+export const useEditTransaction = () => {
+    const context = useContext(EditTransactionContext);
+    if (!context) throw new Error('useEditTransaction must be used within an EditTransactionProvider');
+    return context;
+};
+
+export const EditTransactionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [transaction, setTransaction] = useState<Transaction | null>(null);
+    const [onSave, setOnSave] = useState<((updates: Partial<Omit<Transaction, 'id' | 'created_at'>>) => Promise<void>) | null>(null);
+
+    const setEditTransactionData = useCallback((txn: Transaction, handler: (updates: Partial<Omit<Transaction, 'id' | 'created_at'>>) => Promise<void>) => {
+        setTransaction(txn);
+        setOnSave(() => handler);
+    }, []);
+
+    const clearEditTransactionData = useCallback(() => {
+        setTransaction(null);
+        setOnSave(null);
+    }, []);
+
+    const value = useMemo(() => ({
+        transaction,
+        onSave,
+        setEditTransactionData,
+        clearEditTransactionData,
+    }), [transaction, onSave, setEditTransactionData, clearEditTransactionData]);
+
+    return (
+        <EditTransactionContext.Provider value={value}>
+            {children}
+        </EditTransactionContext.Provider>
     );
 };
 

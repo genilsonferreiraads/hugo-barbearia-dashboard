@@ -15,6 +15,26 @@ const getTodayLocalDate = (): string => {
     return `${year}-${month}-${day}`;
 };
 
+// Helper function to format appointment time
+const formatAppointmentTime = (timeString: string): string => {
+    // Extract HH from time (format: HH:MM:SS)
+    const hour = parseInt(timeString.substring(0, 2), 10);
+    const minutes = timeString.substring(3, 5);
+    
+    // Determine period
+    let period = 'da Manhã';
+    if (hour >= 12 && hour < 18) {
+        period = 'da Tarde';
+    } else if (hour >= 18) {
+        period = 'da Noite';
+    }
+    
+    // Format hour without leading zero
+    const formattedHour = hour.toString();
+    
+    return `${formattedHour}:${minutes} ${period}`;
+};
+
 // New Appointment Options Modal Component
 interface AppointmentOptionsModalProps {
     isOpen: boolean;
@@ -265,8 +285,8 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onClick 
                 className={`flex-1 min-w-0 text-left transition-colors ${isAttended ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-80'}`}
             >
                 <div className="space-y-1">
-                    <p className="text-xs sm:text-sm font-semibold text-zinc-500 dark:text-zinc-400">{appointment.time}</p>
                     <p className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white break-words">{clientName}</p>
+                    <p className="text-xs sm:text-sm font-semibold text-zinc-500 dark:text-zinc-400">{formatAppointmentTime(appointment.time)}</p>
                     <p className="text-xs text-zinc-600 dark:text-zinc-400 truncate">{appointment.service}</p>
                 </div>
             </button>
@@ -292,8 +312,11 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onClick 
     );
 };
 
-const StatCard = ({ icon, value, label }: { icon: string; value: string; label: string; }) => (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15] p-4 sm:p-5">
+const StatCard = ({ icon, value, label, onClick }: { icon: string; value: string; label: string; onClick?: () => void }) => (
+    <div 
+        className={`rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15] p-4 sm:p-5 transition-all duration-300 ${onClick ? 'cursor-pointer hover:shadow-lg hover:border-primary/50 hover:scale-105' : ''}`}
+        onClick={onClick}
+    >
         <div className="flex items-center gap-3 sm:gap-4">
             <div className="flex size-10 sm:size-12 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-[#392c28]">
                 <span className="material-symbols-outlined text-xl sm:text-2xl text-zinc-500 dark:text-zinc-400">{icon}</span>
@@ -367,7 +390,7 @@ export const DashboardPage: React.FC = () => {
 
     const handleOpenFinalizeModal = () => {
         if (!selectedAppointment) return;
-        setFinalizeData(selectedAppointment, handleFinalizeAppointment);
+        setFinalizeData(selectedAppointment, handleFinalizeAppointment, '/finalized-services');
         navigate('/finalize-appointment');
     };
 
@@ -471,38 +494,18 @@ export const DashboardPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                       <StatCard icon="check_circle" value={todayStats.servicesCompleted.toString()} label="Serviços Finalizados" />
+                       <StatCard 
+                           icon="check_circle" 
+                           value={todayStats.servicesCompleted.toString()} 
+                           label="Serviços Finalizados"
+                           onClick={() => navigate('/finalized-services?from=dashboard')}
+                       />
                        <StatCard icon="receipt_long" value={`R$ ${todayStats.averageTicket.toFixed(2).replace('.', ',')}`} label="Ticket Médio" />
                     </div>
                 </div>
             </div>
             
-            <div className="mt-6 lg:mt-8">
-                 <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em] mb-4">Resumo do Dia com IA</h2>
-                 <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15] p-4 sm:p-6">
-                     <button 
-                        onClick={handleGenerateSummary}
-                        disabled={isLoading}
-                        className="flex items-center justify-center gap-2 rounded-lg h-10 sm:h-11 px-4 sm:px-6 bg-primary text-white text-sm font-bold disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors hover:bg-primary/90 w-full sm:w-auto"
-                    >
-                        {isLoading ? (
-                           <svg className="animate-spin -ml-1 mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                           </svg>
-                        ) : (
-                           <span className="material-symbols-outlined text-base sm:text-lg">auto_awesome</span>
-                        )}
-                         <span>{isLoading ? 'Gerando...' : 'Gerar Resumo com IA'}</span>
-                     </button>
-                     {summary && (
-                        <div className="mt-4 p-3 sm:p-4 rounded-lg bg-zinc-100 dark:bg-zinc-800/50">
-                            <p className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap text-sm sm:text-base">{summary}</p>
-                        </div>
-                     )}
-                 </div>
-            </div>
-             <AppointmentOptionsModal
+            <AppointmentOptionsModal
                 isOpen={isOptionsModalOpen}
                 onClose={() => setIsOptionsModalOpen(false)}
                 appointment={selectedAppointment}

@@ -6,6 +6,7 @@ const navItems = [
     { path: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
     { path: '/schedule', icon: 'calendar_today', label: 'Agenda' },
     { path: '/register-service', icon: 'content_cut', label: 'Atendimentos' },
+    { path: '/finalized-services', icon: 'check_circle', label: 'Finalizados' },
     { path: '/reports', icon: 'bar_chart', label: 'Relatórios'},
     { path: '/clients', icon: 'group', label: 'Clientes' },
     { path: '/financial', icon: 'payments', label: 'Financeiro' },
@@ -21,10 +22,16 @@ export const Layout: React.FC = () => {
     const navigate = useNavigate();
     const { signOut, user } = useAuth();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const [avatarZoom, setAvatarZoom] = useState(false);
+    const [isAvatarHovered, setIsAvatarHovered] = useState(false);
 
     const handleAvatarClick = () => {
         setAvatarZoom(true);
+        // On desktop, toggle collapse; on mobile, just zoom
+        if (window.innerWidth >= 1024 && isCollapsed) {
+            setIsCollapsed(false);
+        }
         setTimeout(() => setAvatarZoom(false), 600);
     };
 
@@ -39,6 +46,10 @@ export const Layout: React.FC = () => {
 
     const closeSidebar = () => {
         setIsSidebarOpen(false);
+    };
+
+    const toggleCollapse = () => {
+        setIsCollapsed(!isCollapsed);
     };
 
     return (
@@ -66,18 +77,36 @@ export const Layout: React.FC = () => {
                 </div>
             </div>
 
-            <aside className={`flex h-screen min-h-full flex-col bg-[#181211] p-4 w-64 fixed lg:sticky top-0 z-50 transition-transform duration-300 ${
+            <aside className={`flex h-screen min-h-full flex-col bg-[#181211] p-4 fixed lg:sticky top-0 z-50 transition-all duration-300 ${
                 isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-            } lg:translate-x-0 lg:relative lg:z-auto`}>
+            } lg:translate-x-0 lg:relative lg:z-auto ${isCollapsed ? 'lg:w-20' : 'lg:w-64'} w-64`}>
                 <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className={`bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ${avatarZoom ? 'logo-zoom' : ''}`} style={{ backgroundImage: `url("/imagens/logo-barbearia.JPG")`, backgroundSize: "120%" }} onClick={handleAvatarClick}></div>
-                        <div className="flex flex-col">
-                            <h1 className="text-white text-base font-medium leading-normal">Hugo Barbearia</h1>
-                            <p className="text-[#b9a29d] text-sm font-normal leading-normal">
-                                {user?.email || 'Painel de Controle'}
-                            </p>
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1">
+                            <div 
+                                className={`relative bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ${avatarZoom ? 'logo-zoom' : ''}`} 
+                                style={{ backgroundImage: `url("/imagens/logo-barbearia.JPG")`, backgroundSize: "120%" }} 
+                                onClick={handleAvatarClick}
+                                onMouseEnter={() => setIsAvatarHovered(true)}
+                                onMouseLeave={() => setIsAvatarHovered(false)}
+                            >
+                                {isCollapsed && isAvatarHovered && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/90 rounded-full cursor-pointer hover:bg-black/100 transition-colors">
+                                        <span className="material-symbols-outlined text-lg text-white">dock_to_right</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className={`flex flex-col ${isCollapsed ? 'lg:hidden' : ''}`}>
+                                <h1 className="text-white text-base font-medium leading-normal">Hugo Barbearia</h1>
+                            </div>
                         </div>
+                        <button 
+                            onClick={toggleCollapse}
+                            className={`items-center justify-center text-white/60 hover:text-white transition-colors ${isCollapsed ? 'hidden' : 'hidden lg:flex'}`}
+                            title="Fechar sidebar"
+                        >
+                            <span className="material-symbols-outlined text-2xl">dock_to_right</span>
+                        </button>
                     </div>
                     <nav className="flex flex-col gap-2">
                         {navItems.map(item => (
@@ -96,7 +125,7 @@ export const Layout: React.FC = () => {
                                 {({ isActive }) => (
                                     <>
                                         <Icon name={item.icon} filled={isActive} />
-                                        <p className="text-sm font-medium leading-normal">{item.label}</p>
+                                        <p className={`text-sm font-medium leading-normal ${isCollapsed ? 'lg:hidden' : ''}`}>{item.label}</p>
                                     </>
                                 )}
                             </NavLink>
@@ -118,7 +147,7 @@ export const Layout: React.FC = () => {
                          {({ isActive }) => (
                             <>
                                 <Icon name="settings" filled={isActive} />
-                                <p className="text-sm font-medium leading-normal">Configurações</p>
+                                <p className={`text-sm font-medium leading-normal ${isCollapsed ? 'lg:hidden' : ''}`}>Configurações</p>
                             </>
                          )}
                     </NavLink>
@@ -130,7 +159,7 @@ export const Layout: React.FC = () => {
                         className="flex items-center gap-3 px-3 py-2 rounded-lg text-white/70 hover:bg-[#392c28] hover:text-white transition-colors"
                     >
                         <Icon name="logout" />
-                        <p className="text-sm font-medium leading-normal">Sair</p>
+                        <p className={`text-sm font-medium leading-normal ${isCollapsed ? 'lg:hidden' : ''}`}>Sair</p>
                     </button>
                 </div>
             </aside>

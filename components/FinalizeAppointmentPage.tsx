@@ -13,16 +13,50 @@ type PaymentState = {
 
 interface FinalizeAppointmentPageProps {
     appointment: Appointment;
-    onFinalize: (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>;
+    onFinalize: (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'> | Partial<Omit<Transaction, 'id' | 'created_at'>>) => Promise<void>;
+    isEditing?: boolean;
+    initialData?: Transaction;
+    redirectTo?: string; // Optional redirect path after finalization
 }
 
 const Icon = ({ name, className }: { name: string; className?: string }) => 
     <span className={`material-symbols-outlined ${className || ''}`}>{name}</span>;
 
-export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = ({ appointment, onFinalize }) => {
+// Helper function to format discount input
+const formatDiscountInput = (value: string): string => {
+    // Remove all non-numeric characters
+    let digits = value.replace(/\D/g, '');
+    
+    // If empty, return 0,00
+    if (!digits) return '0,00';
+    
+    // Remove leading zeros (keep at least one digit)
+    digits = digits.replace(/^0+/, '') || '0';
+    
+    // Only pad with leading zeros if less than 2 digits
+    if (digits.length === 1) {
+        digits = '0' + digits; // 3 -> 03
+    }
+    
+    // If less than 2 digits after removing leading zeros
+    if (digits.length === 2) {
+        // Return as decimal: 03 -> 0,03, 30 -> 0,30
+        return '0,' + digits;
+    }
+    
+    // For 3+ digits, last 2 are decimals
+    const intPart = digits.slice(0, -2);
+    const decimalPart = digits.slice(-2);
+    
+    return intPart + ',' + decimalPart;
+};
+
+export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = ({ appointment, onFinalize, isEditing = false, initialData, redirectTo }) => {
     const navigate = useNavigate();
     const { services } = useServices();
     
+    console.log('FinalizeAppointmentPage redirectTo:', redirectTo);
+
     const [step, setStep] = useState(1);
     const [selectedServices, setSelectedServices] = useState<Service[]>([]);
     const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: PaymentMethod.Pix, amount: '' }]);
@@ -47,22 +81,44 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
     const displayedServices = showAllServices ? services : services.slice(0, 3);
 
     useEffect(() => {
-        const appointmentServiceText = appointment.service.toLowerCase();
-        const preSelected = services.filter(service => appointmentServiceText.includes(service.name.toLowerCase()));
-        setSelectedServices(preSelected);
-        
-        const initialSubtotal = preSelected.reduce((acc, s) => acc + s.price, 0);
-        setPayments([{ id: Date.now(), method: PaymentMethod.Pix, amount: initialSubtotal.toFixed(2).replace('.', ',') }]);
-        setDiscount('');
-        setStep(1);
-        setShowAllServices(false);
-    }, [appointment, services]);
+        if (isEditing && initialData) {
+            // Pre-fill with existing transaction data
+            // Parse and select services from the transaction
+            if (initialData.service) {
+                const serviceNames = initialData.service.split(',').map(s => s.trim().toLowerCase());
+                const preSelected = services.filter(service => 
+                    serviceNames.some(name => service.name.toLowerCase().includes(name) || name.includes(service.name.toLowerCase()))
+                );
+                setSelectedServices(preSelected);
+            }
+            
+            setDiscount(initialData.discount.toFixed(2).replace('.', ','));
+            setPayments([{ id: Date.now(), method: initialData.paymentMethod as PaymentMethod, amount: initialData.value.toFixed(2).replace('.', ',') }]);
+        } else if (!isEditing) {
+            // Original logic for appointments
+            const appointmentServiceText = appointment.service.toLowerCase();
+            const preSelected = services.filter(service => appointmentServiceText.includes(service.name.toLowerCase()));
+            setSelectedServices(preSelected);
+            
+            const initialSubtotal = preSelected.reduce((acc, s) => acc + s.price, 0);
+            
+            setPayments([{ id: Date.now(), method: PaymentMethod.Pix, amount: initialSubtotal.toFixed(2).replace('.', ',') }]);
+            setDiscount('');
+        }
+    }, [isEditing, appointment, services, initialData]);
 
     useEffect(() => {
         if (payments.length === 1) {
             setPayments(prev => [{...prev[0], amount: totalValue.toFixed(2).replace('.', ',')}]);
         }
     }, [totalValue, payments.length]);
+
+    // Update payment amount when services change in edit mode
+    useEffect(() => {
+        if (isEditing && payments.length === 1 && selectedServices.length > 0) {
+            setPayments(prev => [{...prev[0], amount: totalValue.toFixed(2).replace('.', ',')}]);
+        }
+    }, [selectedServices, isEditing, totalValue]);
 
     const handleServiceToggle = (service: Service) => {
         setSelectedServices(prev =>
@@ -96,7 +152,8 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
             const otherIndex = 1 - changedIndex;
             const changedAmount = parseFloat(value.replace(',', '.')) || 0;
             const remainingAmount = totalValue - changedAmount;
-            newPayments[otherIndex].amount = remainingAmount >= 0 ? remainingAmount.toFixed(2).replace('.', ',') : '0,00';
+            const formattedRemaining = remainingAmount >= 0 ? remainingAmount.toFixed(2).replace('.', ',') : '0,00';
+            newPayments[otherIndex].amount = formattedRemaining;
         }
         setPayments(newPayments);
     };
@@ -120,15 +177,37 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
 
         try {
             setIsSubmitting(true);
-            await onFinalize({
+            
+            const transactionData: any = {
                 clientName: appointment.clientName,
                 service: selectedServices.map(s => s.name).join(', '),
                 paymentMethod: payments.map(p => p.method).join(', '),
                 subtotal: subtotal,
                 discount: discountValue,
                 value: totalValue,
-            });
-            navigate(-1);
+            };
+            
+            // If not editing, add date (for new transactions)
+            if (!isEditing) {
+                transactionData.date = appointment.date;
+            }
+            
+            await onFinalize(transactionData);
+            
+            // Navigate back (when editing, go back to FinalizedServices; when creating, go back to appointments)
+            console.log('redirectTo value:', redirectTo);
+            console.log('redirectTo === /finalized-services:', redirectTo === '/finalized-services');
+            
+            // Pass success message if navigating to finalized-services
+            if (redirectTo === '/finalized-services') {
+                console.log('Taking redirectTo branch, navigating to:', redirectTo);
+                navigate(redirectTo, { state: { successMessage: 'Salvo com sucesso!' } });
+                console.log('Navigate called for /finalized-services - THIS SHOULD BE LAST LOG');
+            } else {
+                console.log('Taking else branch, navigating to:', redirectTo || -1);
+                navigate(redirectTo || -1);
+                console.log('Navigate called with navigate(-1)');
+            }
         } catch (error: any) {
             console.error("Failed to finalize appointment:", error);
             alert(`Falha ao finalizar atendimento: ${error.message || 'Erro desconhecido.'}`);
@@ -291,7 +370,7 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                                             className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-9 pl-10 pr-3 text-sm font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all" 
                                             placeholder="0,00"
                                             value={discount}
-                                            onChange={(e) => setDiscount(e.target.value)}
+                                            onChange={(e) => setDiscount(formatDiscountInput(e.target.value))}
                                         />
                                     </div>
                                 </label>
@@ -353,7 +432,7 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                                                             type="text"
                                                             placeholder="0,00"
                                                             value={payment.amount}
-                                                            onChange={e => handlePaymentChange(payment.id, 'amount', e.target.value)}
+                                                            onChange={e => handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value))}
                                                             className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-10 pr-3 text-xs font-semibold text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
                                                         />
                                                     </div>

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useServices, useTransactions } from '../contexts.tsx';
 import { Service, PaymentMethod } from '../types.ts';
 import { Toast, type ToastType } from './Toast.tsx';
@@ -14,6 +15,35 @@ type PaymentState = {
 const Icon = ({ name, className }: { name: string; className?: string }) => 
     <span className={`material-symbols-outlined ${className || ''}`}>{name}</span>;
 
+// Helper function to format currency input
+const formatDiscountInput = (value: string): string => {
+    // Remove all non-numeric characters
+    let digits = value.replace(/\D/g, '');
+    
+    // If empty, return 0,00
+    if (!digits) return '0,00';
+    
+    // Remove leading zeros (keep at least one digit)
+    digits = digits.replace(/^0+/, '') || '0';
+    
+    // Only pad with leading zeros if less than 2 digits
+    if (digits.length === 1) {
+        digits = '0' + digits; // 3 -> 03
+    }
+    
+    // If less than 2 digits after removing leading zeros
+    if (digits.length === 2) {
+        // Return as decimal: 03 -> 0,03, 30 -> 0,30
+        return '0,' + digits;
+    }
+    
+    // For 3+ digits, last 2 are decimals
+    const intPart = digits.slice(0, -2);
+    const decimalPart = digits.slice(-2);
+    
+    return intPart + ',' + decimalPart;
+};
+
 // Helper function to get today's date in local timezone (YYYY-MM-DD format)
 const getTodayLocalDate = (): string => {
     const today = new Date();
@@ -26,6 +56,7 @@ const getTodayLocalDate = (): string => {
 export const ServiceRegistryPage: React.FC = () => {
   const { services } = useServices();
   const { addTransaction } = useTransactions();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [clientName, setClientName] = useState('');
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
@@ -90,7 +121,8 @@ export const ServiceRegistryPage: React.FC = () => {
         const otherIndex = 1 - changedIndex;
         const changedAmount = parseFloat(value.replace(',', '.')) || 0;
         const remainingAmount = totalValue - changedAmount;
-        newPayments[otherIndex].amount = remainingAmount >= 0 ? remainingAmount.toFixed(2).replace('.', ',') : '0,00';
+        const formattedRemaining = remainingAmount >= 0 ? remainingAmount.toFixed(2).replace('.', ',') : '0,00';
+        newPayments[otherIndex].amount = formattedRemaining;
     }
     setPayments(newPayments);
   };
@@ -143,8 +175,8 @@ export const ServiceRegistryPage: React.FC = () => {
             value: totalValue,
         });
 
-        setToast({ message: `Atendimento finalizado para ${clientName}!`, type: 'success' });
         handleClear();
+        navigate('/finalized-services', { state: { successMessage: 'Salvo com sucesso!' } });
     } catch (error: any) {
         console.error("Failed to register service:", error);
         setToast({ 
@@ -290,7 +322,7 @@ export const ServiceRegistryPage: React.FC = () => {
                                         className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 pl-10 pr-3 text-sm font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all" 
                                         placeholder="0,00"
                                         value={discount}
-                                        onChange={(e) => setDiscount(e.target.value)}
+                                        onChange={(e) => setDiscount(formatDiscountInput(e.target.value))}
                                     />
                                 </div>
                             </label>
@@ -327,7 +359,7 @@ export const ServiceRegistryPage: React.FC = () => {
                                                         type="text"
                                                         placeholder="0,00"
                                                         value={payment.amount}
-                                                        onChange={e => handlePaymentChange(payment.id, 'amount', e.target.value)}
+                                                        onChange={e => handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value))}
                                                         className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-10 pr-3 text-xs font-semibold text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
                                                     />
                                                 </div>

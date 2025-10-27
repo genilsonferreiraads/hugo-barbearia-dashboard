@@ -64,6 +64,29 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
     const [time, setTime] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [newAppointmentData, setNewAppointmentData] = useState<{ clientName: string; date: string; time: string } | null>(null);
+
+    // Wait for appointments to update and show the receipt modal
+    useEffect(() => {
+        if (newAppointmentData) {
+            console.log('Waiting for new appointment:', newAppointmentData);
+            console.log('Current appointments count:', appointments.length);
+            
+            const foundAppointment = appointments.find(apt => 
+                apt.clientName === newAppointmentData.clientName && 
+                apt.date === newAppointmentData.date && 
+                normalizeTime(apt.time) === normalizeTime(newAppointmentData.time)
+            );
+            
+            console.log('Found appointment in useEffect:', foundAppointment);
+            
+            if (foundAppointment) {
+                // Navigate to receipt page
+                navigate(`/appointment-receipt?id=${foundAppointment.id}`);
+                setNewAppointmentData(null);
+            }
+        }
+    }, [appointments, newAppointmentData, navigate]);
 
     // Function to check if a time slot is available for a given date
     const isTimeSlotAvailable = (selectedDate: string, selectedTime: string): boolean => {
@@ -130,11 +153,18 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                 
             await onSave({
                 clientName: clientNameWithWhatsApp,
-                service: 'Aguardando atendimento',
+                service: '',
                 date,
                 time,
             });
-            navigate(-1);
+            
+            console.log('Appointment saved, storing data for modal...');
+            // Store the data and wait for appointments to update via useEffect
+            setNewAppointmentData({
+                clientName: clientNameWithWhatsApp,
+                date,
+                time,
+            });
         } catch (error: any) {
             console.error("Failed to save appointment:", error);
             setErrorMessage(`Falha ao salvar agendamento: ${error.message || 'Erro desconhecido.'}`);
@@ -355,6 +385,8 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                     animation: fade-in 0.3s ease-out;
                 }
             `}</style>
+
+            {/* The AppointmentReceiptModal component is no longer needed as it's a full page navigation */}
         </div>
     );
 };

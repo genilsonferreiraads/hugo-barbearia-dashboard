@@ -195,7 +195,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
                 
             await onSave({
                 clientName: clientNameWithWhatsApp,
-                service: 'Aguardando atendimento',
+                service: '',
                 date,
                 time,
             });
