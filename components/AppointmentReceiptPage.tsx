@@ -46,24 +46,40 @@ export const AppointmentReceiptPage: React.FC = () => {
                 quality: 1,
             });
 
+            console.log('Canvas generated');
+
             // Get client info
             const clientNameOnly = appointment.clientName.split('|')[0];
 
-            // Save to blob
-            canvas.toBlob(async (blob) => {
-                if (!blob) {
-                    alert('Erro ao gerar a imagem');
-                    setIsGenerating(false);
-                    return;
-                }
+            // Check if it's mobile
+            const isMobile = /iPhone|iPad|Android|Mobile/.test(navigator.userAgent);
 
-                // Check if it's mobile
-                const isMobile = /iPhone|iPad|Android|Mobile/.test(navigator.userAgent);
+            if (isMobile && navigator.share) {
+                console.log('Using native share');
+                
+                // Convert canvas to blob for sharing
+                canvas.toBlob(async (blob) => {
+                    if (!blob) {
+                        console.error('Blob is null');
+                        alert('Erro ao gerar imagem');
+                        setIsGenerating(false);
+                        return;
+                    }
 
-                if (isMobile && navigator.share) {
-                    // Mobile: Use native share
+                    console.log('Blob created:', blob.size, 'bytes');
+
                     try {
                         const file = new File([blob], `comprovante-${clientNameOnly}.png`, { type: 'image/png' });
+                        
+                        console.log('File created:', file.name, file.size, 'bytes');
+
+                        // Check if can share files
+                        if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+                            console.log('Cannot share files, trying base64');
+                            throw new Error('Cannot share files');
+                        }
+
+                        console.log('Calling navigator.share');
                         
                         await navigator.share({
                             files: [file],
@@ -71,32 +87,47 @@ export const AppointmentReceiptPage: React.FC = () => {
                             text: `Agendamento confirmado! 📅 ${appointment.date} - ⏰ ${appointment.time}`
                         });
 
+                        console.log('Share successful');
+
                         setTimeout(() => {
                             setIsGenerating(false);
                             onClose();
                         }, 500);
                     } catch (error: any) {
-                        // User canceled or error
-                        if (error.name !== 'AbortError') {
-                            console.error('Erro ao compartilhar:', error);
+                        console.error('Share error:', error.name, error.message);
+                        
+                        // If share failed, try opening WhatsApp app directly
+                        const clientPhone = appointment.clientName.includes('|') 
+                            ? appointment.clientName.split('|')[1].replace(/\D/g, '') 
+                            : '';
+                        
+                        if (clientPhone) {
+                            // Open WhatsApp with message
+                            const message = `Agendamento confirmado! 📅 ${appointment.date} - ⏰ ${appointment.time}`;
+                            const whatsappUrl = `https://wa.me/55${clientPhone}?text=${encodeURIComponent(message)}`;
+                            window.open(whatsappUrl, '_blank');
+                        } else {
+                            alert('Não foi possível compartilhar. Tente manualmente com o WhatsApp.');
                         }
+
                         setIsGenerating(false);
                     }
-                } else {
-                    // Desktop: Download
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `comprovante-agendamento-${new Date().getTime()}.png`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
+                }, 'image/png');
+            } else {
+                console.log('Using desktop download');
+                
+                // Desktop: Download
+                const dataUrl = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = `comprovante-agendamento-${new Date().getTime()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
 
-                    setIsGenerating(false);
-                    onClose();
-                }
-            }, 'image/png');
+                setIsGenerating(false);
+                onClose();
+            }
         } catch (error) {
             console.error('Erro ao gerar comprovante:', error);
             alert('Erro ao gerar comprovante');
