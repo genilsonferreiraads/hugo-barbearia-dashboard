@@ -63,11 +63,11 @@
   animation: background-motion 15s ease-in-out infinite;
 }
 
-/* Login screen animations */
-@keyframes slide-up-fade-in {
+/* Form slide up animation */
+@keyframes form-slide-up {
   0% {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(40px);
   }
   100% {
     opacity: 1;
@@ -75,39 +75,8 @@
   }
 }
 
-@keyframes slide-down-fade-out {
-  0% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-30px);
-  }
-}
-
-.login-enter {
-  animation: slide-up-fade-in 0.6s ease-out;
-}
-
-.login-exit {
-  animation: slide-down-fade-out 0.6s ease-out;
-}
-
-.login-screen {
-  position: relative;
-}
-
-.login-screen::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: inherit;
-  background-size: inherit;
-  background-position: inherit;
-  background-attachment: fixed;
-  animation: background-motion 15s ease-in-out infinite;
-  z-index: -1;
+.form-enter {
+  animation: form-slide-up 0.8s ease-out;
 }
 
 .logo-zoom {
