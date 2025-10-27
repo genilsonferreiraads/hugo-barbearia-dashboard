@@ -125,12 +125,6 @@ export const SchedulePage: React.FC = () => {
             {/* Header */}
             <header className="mb-6 mt-4 sm:mt-6">
                 <div className="max-w-4xl mx-auto px-4 sm:px-0">
-                    <h1 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tighter mb-6 flex items-center gap-3">
-                        <div className="p-2 sm:p-3 rounded-lg bg-primary/10 dark:bg-primary/20">
-                            <Icon name="event" className="text-primary text-2xl sm:text-3xl" />
-                        </div>
-                        <span className="bg-gradient-to-r from-primary via-primary to-primary/80 bg-clip-text text-transparent">Agenda</span>
-                    </h1>
                 </div>
                 
                 {/* Date Navigation - Modernized */}
@@ -159,7 +153,7 @@ export const SchedulePage: React.FC = () => {
 
                         {/* Calendar Picker Dropdown - Modern Design */}
                         {showCalendar && (
-                            <div className="absolute top-full left-0 right-0 mt-3 z-50 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl p-3 sm:p-4 md:p-6 backdrop-blur-sm max-w-full overflow-x-hidden">
+                            <div className="absolute top-full left-0 right-0 mt-3 z-30 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl px-2 py-3 sm:p-4 md:p-6 backdrop-blur-sm max-w-full overflow-x-hidden">
                                 <div className="space-y-4">
                                     {/* Quick Actions */}
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
@@ -194,7 +188,7 @@ export const SchedulePage: React.FC = () => {
 
                                     {/* Calendar Grid */}
                                     <div className="pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
-                                        <div className="grid grid-cols-7 gap-x-1 sm:gap-x-2 gap-y-1.5 sm:gap-y-2">
+                                        <div className="grid grid-cols-7 gap-x-2 sm:gap-x-3 gap-y-1 sm:gap-y-2">
                                             {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, idx) => (
                                                 <div key={idx} className="text-center text-xs font-semibold text-gray-500 dark:text-gray-500 py-1.5 sm:py-2">
                                                     {day}
@@ -204,6 +198,7 @@ export const SchedulePage: React.FC = () => {
                                     const dateStr = formatDateYYYYMMDD(date);
                                                 const isSelected = dateStr === selectedDate;
                                                 const isToday = dateStr === getTodayLocalDate();
+                                                const hasAppointments = appointments.some(app => app.date === dateStr);
                                                 
                                     return (
                                                 <button 
@@ -212,6 +207,8 @@ export const SchedulePage: React.FC = () => {
                                                         className={`py-1 sm:py-2 px-0 sm:px-1 rounded text-xs sm:text-sm font-semibold transition-all ${
                                                             isSelected
                                                                 ? 'bg-primary text-white shadow-md'
+                                                                : hasAppointments
+                                                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 font-bold'
                                                                 : isToday
                                                                 ? 'bg-primary/20 text-primary border border-primary/50 font-bold'
                                                                 : 'bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -252,159 +249,184 @@ export const SchedulePage: React.FC = () => {
             {/* Appointments Cards - Centered and Compact */}
             <main className="flex-1 w-full px-4 sm:px-0">
                 <div className="max-w-4xl mx-auto space-y-6">
-                    {/* Morning Section (08:00, 10:00) */}
-                    <div>
-                        <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 px-1">Manhã</h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {AVAILABLE_TIMES.slice(0, 2).map((timeSlot) => {
-                                const appointment = dayAppointments.find(app => {
-                                    const normalizedAppTime = app.time.includes(':') && app.time.split(':').length === 3 
-                                        ? app.time.substring(0, 5)
-                                        : app.time;
-                                    return normalizedAppTime === timeSlot;
-                                });
+                    {/* Morning and Afternoon Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        {/* Morning Section (08:00, 10:00) */}
+                        <div>
+                            <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 px-1">Manhã</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-1 gap-3">
+                                {AVAILABLE_TIMES.slice(0, 2).map((timeSlot) => {
+                                    const appointment = dayAppointments.find(app => {
+                                        const normalizedAppTime = app.time.includes(':') && app.time.split(':').length === 3 
+                                            ? app.time.substring(0, 5)
+                                            : app.time;
+                                        return normalizedAppTime === timeSlot;
+                                    });
 
-                                const clientName = appointment ? extractClientName(appointment.clientName) : 'Disponível';
-                                
-                                const statusStyles: { [key in AppointmentStatus]: { bg: string; text: string; label: string; dot: string } } = {
-                                    [AppointmentStatus.Confirmed]: { 
-                                        bg: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800', 
-                                        text: 'text-blue-700 dark:text-blue-300',
-                                        label: 'Confirmado',
-                                        dot: 'bg-blue-500'
-                                    },
-                                    [AppointmentStatus.Arrived]: { 
-                                        bg: 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800', 
-                                        text: 'text-yellow-700 dark:text-yellow-300',
-                                        label: 'Chegou',
-                                        dot: 'bg-yellow-500'
-                                    },
-                                    [AppointmentStatus.Attended]: { 
-                                        bg: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800', 
-                                        text: 'text-green-700 dark:text-green-300',
-                                        label: 'Atendido',
-                                        dot: 'bg-green-500'
-                                    },
-                                };
+                                    const clientName = appointment ? extractClientName(appointment.clientName) : 'Disponível';
+                                    
+                                    // Check if time slot is in the past for today
+                                    const isToday = selectedDate === getTodayLocalDate();
+                                    const now = new Date();
+                                    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                    const isTimePassed = isToday && timeSlot < currentTime;
+                                    const shouldHide = isTimePassed && !appointment;
 
-                                return (
-                                    <button
-                                        key={timeSlot}
-                                        onClick={() => appointment && handleAppointmentClick(appointment)}
-                                        disabled={!appointment}
-                                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                                            appointment
-                                                ? `${statusStyles[appointment.status].bg} border-current hover:shadow-md hover:-translate-y-0.5 cursor-pointer`
-                                                : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="space-y-1 flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-xs font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{timeSlot}</p>
+                                    const statusStyles: { [key in AppointmentStatus]: { bg: string; text: string; label: string; dot: string } } = {
+                                        [AppointmentStatus.Confirmed]: { 
+                                            bg: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800', 
+                                            text: 'text-blue-700 dark:text-blue-300',
+                                            label: 'Confirmado',
+                                            dot: 'bg-blue-500'
+                                        },
+                                        [AppointmentStatus.Arrived]: { 
+                                            bg: 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800', 
+                                            text: 'text-yellow-700 dark:text-yellow-300',
+                                            label: 'Chegou',
+                                            dot: 'bg-yellow-500'
+                                        },
+                                        [AppointmentStatus.Attended]: { 
+                                            bg: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800', 
+                                            text: 'text-green-700 dark:text-green-300',
+                                            label: 'Atendido',
+                                            dot: 'bg-green-500'
+                                        },
+                                    };
+
+                                    // Don't render past available slots for today
+                                    if (shouldHide) {
+                                        return null;
+                                    }
+
+                                    return (
+                                        <button
+                                            key={timeSlot}
+                                            onClick={() => appointment ? handleAppointmentClick(appointment) : handleNewAppointment()}
+                                            className={`w-full p-4 rounded-lg border-2 transition-all text-left min-h-appointment ${
+                                                appointment
+                                                    ? `${statusStyles[appointment.status].bg} border-current hover:shadow-md hover:-translate-y-0.5 cursor-pointer`
+                                                    : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 hover:shadow-md hover:-translate-y-0.5 cursor-pointer'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="space-y-1 flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-xs font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{timeSlot}</p>
+                                                        {appointment && (
+                                                            <div className={`w-2 h-2 rounded-full ${statusStyles[appointment.status].dot}`} />
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{clientName}</p>
                                                     {appointment && (
-                                                        <div className={`w-2 h-2 rounded-full ${statusStyles[appointment.status].dot}`} />
+                                                        <>
+                                                            <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{appointment.service}</p>
+                                                            <p className={`text-xs font-semibold ${statusStyles[appointment.status].text}`}>
+                                                                {statusStyles[appointment.status].label}
+                                                            </p>
+                                                        </>
                                                     )}
                                                 </div>
-                                                <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{clientName}</p>
-                                                {appointment && (
-                                                    <>
-                                                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{appointment.service}</p>
-                                                        <p className={`text-xs font-semibold ${statusStyles[appointment.status].text}`}>
-                                                            {statusStyles[appointment.status].label}
-                                                        </p>
-                                                    </>
-                                                )}
-                                            </div>
-                                            <div className="flex-shrink-0">
-                                                {appointment ? (
-                                                    <Icon name="arrow_forward" className="text-gray-400 dark:text-gray-600 text-lg" />
-                                                ) : (
-                                                    <Icon name="add" className="text-gray-300 dark:text-gray-700 text-lg" />
-                                                )}
-                                            </div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                </div>
-            </div>
-
-                    {/* Afternoon Section (14:00, 16:00) */}
-                    <div>
-                        <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 px-1">Tarde</h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {AVAILABLE_TIMES.slice(2, 4).map((timeSlot) => {
-                                const appointment = dayAppointments.find(app => {
-                                    const normalizedAppTime = app.time.includes(':') && app.time.split(':').length === 3 
-                                        ? app.time.substring(0, 5)
-                                        : app.time;
-                                    return normalizedAppTime === timeSlot;
-                                });
-
-                                const clientName = appointment ? extractClientName(appointment.clientName) : 'Disponível';
-                                
-                                const statusStyles: { [key in AppointmentStatus]: { bg: string; text: string; label: string; dot: string } } = {
-                                    [AppointmentStatus.Confirmed]: { 
-                                        bg: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800', 
-                                        text: 'text-blue-700 dark:text-blue-300',
-                                        label: 'Confirmado',
-                                        dot: 'bg-blue-500'
-                                    },
-                                    [AppointmentStatus.Arrived]: { 
-                                        bg: 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800', 
-                                        text: 'text-yellow-700 dark:text-yellow-300',
-                                        label: 'Chegou',
-                                        dot: 'bg-yellow-500'
-                                    },
-                                    [AppointmentStatus.Attended]: { 
-                                        bg: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800', 
-                                        text: 'text-green-700 dark:text-green-300',
-                                        label: 'Atendido',
-                                        dot: 'bg-green-500'
-                                    },
-                                };
-
-                                return (
-                                    <button
-                                        key={timeSlot}
-                                        onClick={() => appointment && handleAppointmentClick(appointment)}
-                                        disabled={!appointment}
-                                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                                            appointment
-                                                ? `${statusStyles[appointment.status].bg} border-current hover:shadow-md hover:-translate-y-0.5 cursor-pointer`
-                                                : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="space-y-1 flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-xs font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{timeSlot}</p>
-                                                    {appointment && (
-                                                        <div className={`w-2 h-2 rounded-full ${statusStyles[appointment.status].dot}`} />
+                                                <div className="flex-shrink-0">
+                                                    {appointment ? (
+                                                        <Icon name="arrow_forward" className="text-gray-400 dark:text-gray-600 text-lg" />
+                                                    ) : (
+                                                        <Icon name="add" className="text-gray-300 dark:text-gray-700 text-lg" />
                                                     )}
                                                 </div>
-                                                <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{clientName}</p>
-                                                {appointment && (
-                                                    <>
-                                                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{appointment.service}</p>
-                                                        <p className={`text-xs font-semibold ${statusStyles[appointment.status].text}`}>
-                                                            {statusStyles[appointment.status].label}
-                                                        </p>
-                                                    </>
-                                                )}
                                             </div>
-                                            <div className="flex-shrink-0">
-                                                {appointment ? (
-                                                    <Icon name="arrow_forward" className="text-gray-400 dark:text-gray-600 text-lg" />
-                                                ) : (
-                                                    <Icon name="add" className="text-gray-300 dark:text-gray-700 text-lg" />
-                                                )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Afternoon Section (14:00, 16:00) */}
+                        <div>
+                            <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 px-1">Tarde</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-1 gap-3">
+                                {AVAILABLE_TIMES.slice(2, 4).map((timeSlot) => {
+                                    const appointment = dayAppointments.find(app => {
+                                        const normalizedAppTime = app.time.includes(':') && app.time.split(':').length === 3 
+                                            ? app.time.substring(0, 5)
+                                            : app.time;
+                                        return normalizedAppTime === timeSlot;
+                                    });
+
+                                    const clientName = appointment ? extractClientName(appointment.clientName) : 'Disponível';
+                                    
+                                    const statusStyles: { [key in AppointmentStatus]: { bg: string; text: string; label: string; dot: string } } = {
+                                        [AppointmentStatus.Confirmed]: { 
+                                            bg: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800', 
+                                            text: 'text-blue-700 dark:text-blue-300',
+                                            label: 'Confirmado',
+                                            dot: 'bg-blue-500'
+                                        },
+                                        [AppointmentStatus.Arrived]: { 
+                                            bg: 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800', 
+                                            text: 'text-yellow-700 dark:text-yellow-300',
+                                            label: 'Chegou',
+                                            dot: 'bg-yellow-500'
+                                        },
+                                        [AppointmentStatus.Attended]: { 
+                                            bg: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800', 
+                                            text: 'text-green-700 dark:text-green-300',
+                                            label: 'Atendido',
+                                            dot: 'bg-green-500'
+                                        },
+                                    };
+
+                                    // Check if time slot is in the past for today
+                                    const isToday = selectedDate === getTodayLocalDate();
+                                    const now = new Date();
+                                    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                    const isTimePassed = isToday && timeSlot < currentTime;
+                                    const shouldHide = isTimePassed && !appointment;
+
+                                    // Don't render past available slots for today
+                                    if (shouldHide) {
+                                        return null;
+                                    }
+
+                                    return (
+                                        <button
+                                            key={timeSlot}
+                                            onClick={() => appointment ? handleAppointmentClick(appointment) : handleNewAppointment()}
+                                            className={`w-full p-4 rounded-lg border-2 transition-all text-left min-h-appointment ${
+                                                appointment
+                                                    ? `${statusStyles[appointment.status].bg} border-current hover:shadow-md hover:-translate-y-0.5 cursor-pointer`
+                                                    : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 hover:shadow-md hover:-translate-y-0.5 cursor-pointer'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="space-y-1 flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-xs font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{timeSlot}</p>
+                                                        {appointment && (
+                                                            <div className={`w-2 h-2 rounded-full ${statusStyles[appointment.status].dot}`} />
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{clientName}</p>
+                                                    {appointment && (
+                                                        <>
+                                                            <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{appointment.service}</p>
+                                                            <p className={`text-xs font-semibold ${statusStyles[appointment.status].text}`}>
+                                                                {statusStyles[appointment.status].label}
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                <div className="flex-shrink-0">
+                                                    {appointment ? (
+                                                        <Icon name="arrow_forward" className="text-gray-400 dark:text-gray-600 text-lg" />
+                                                    ) : (
+                                                        <Icon name="add" className="text-gray-300 dark:text-gray-700 text-lg" />
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>

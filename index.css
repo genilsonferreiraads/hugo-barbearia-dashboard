@@ -264,3 +264,40 @@
     max-width: 100%;
   }
 }
+
+/* Action bar slide in animation */
+@keyframes action-bar-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.action-bar-enter {
+  animation: action-bar-slide-in 0.4s ease-out forwards;
+}
+
+/* Action bar slide out animation */
+@keyframes action-bar-slide-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.action-bar-exit {
+  animation: action-bar-slide-out 0.3s ease-in forwards;
+}
+
+/* Custom appointment card height */
+.min-h-appointment {
+  min-height: 7rem;
+}
