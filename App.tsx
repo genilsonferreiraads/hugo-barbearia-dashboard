@@ -30,6 +30,7 @@ import { NewAppointmentPage } from './components/NewAppointmentPage.tsx';
 import { EditAppointmentPage } from './components/EditAppointmentPage.tsx';
 import { AppointmentDetailPage } from './components/AppointmentDetailPage.tsx';
 import { FinalizedServicesPage } from './components/FinalizedServices.tsx';
+import { TransactionDetailPage } from './components/TransactionDetailPage.tsx';
 import { AppointmentReceiptPage } from './components/AppointmentReceiptPage.tsx';
 import { Appointment } from './types.ts';
 
@@ -54,9 +55,8 @@ const FinalizeAppointmentWrapper: React.FC = () => {
   const { appointment, onFinalize, redirectTo } = useFinalizeAppointment();
   const navigate = useNavigate();
   
-  console.log('FinalizeAppointmentWrapper redirectTo:', redirectTo);
-  
-  if (!appointment || !onFinalize) {
+  // onFinalize is always a function now (wrapper), but we need appointment
+  if (!appointment) {
     return <Navigate to="/" replace />;
   }
 
@@ -183,6 +183,11 @@ const App: React.FC = () => {
                               <Route path="edit-transaction" element={
                                 <ProtectedRoute>
                                   <EditTransactionWrapper />
+                                </ProtectedRoute>
+                              } />
+                              <Route path="transaction/:id" element={
+                                <ProtectedRoute>
+                                  <TransactionDetailPage />
                                 </ProtectedRoute>
                               } />
                               {/* Placeholder routes for other nav items */}

@@ -55,7 +55,6 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
     const navigate = useNavigate();
     const { services } = useServices();
     
-    console.log('FinalizeAppointmentPage redirectTo:', redirectTo);
 
     const [step, setStep] = useState(1);
     const [selectedServices, setSelectedServices] = useState<Service[]>([]);
@@ -195,18 +194,12 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
             await onFinalize(transactionData);
             
             // Navigate back (when editing, go back to FinalizedServices; when creating, go back to appointments)
-            console.log('redirectTo value:', redirectTo);
-            console.log('redirectTo === /finalized-services:', redirectTo === '/finalized-services');
             
             // Pass success message if navigating to finalized-services
             if (redirectTo === '/finalized-services') {
-                console.log('Taking redirectTo branch, navigating to:', redirectTo);
                 navigate(redirectTo, { state: { successMessage: 'Salvo com sucesso!' } });
-                console.log('Navigate called for /finalized-services - THIS SHOULD BE LAST LOG');
             } else {
-                console.log('Taking else branch, navigating to:', redirectTo || -1);
                 navigate(redirectTo || -1);
-                console.log('Navigate called with navigate(-1)');
             }
         } catch (error: any) {
             console.error("Failed to finalize appointment:", error);

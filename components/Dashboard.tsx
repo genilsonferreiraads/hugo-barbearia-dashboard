@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Appointment, AppointmentStatus, Transaction, PaymentMethod } from '../types.ts';
 import { generateDailySummary } from '../services/geminiService.ts';
@@ -247,7 +247,17 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
         [AppointmentStatus.Arrived]: "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300",
         [AppointmentStatus.Attended]: "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-800 dark:text-zinc-300",
     };
-    const isAttended = appointment.status === AppointmentStatus.Attended;
+    // Check if appointment is attended - use case-insensitive comparison
+    const getStatusString = (status: any): string => {
+        if (!status) return '';
+        return String(status).trim().toLowerCase();
+    };
+    const statusStr = getStatusString(appointment.status);
+    const attendedStr = getStatusString(AppointmentStatus.Attended);
+    const isAttended = statusStr === attendedStr || 
+                      statusStr === 'atendido' ||
+                      appointment.status === AppointmentStatus.Attended ||
+                      String(appointment.status) === 'Atendido';
     const clientName = appointment.clientName.split('|')[0];
     
     // Extract WhatsApp number
@@ -265,6 +275,10 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
     const handleWhatsAppClick = (e: React.MouseEvent) => {
         e.stopPropagation();
+        // Don't open WhatsApp if appointment is attended
+        if (isAttended) {
+            return;
+        }
         if (whatsappUrl2) {
             let firstName = clientName;
             if (clientName.includes(' ')) {
@@ -295,6 +309,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
     const handleExpand = (e: React.MouseEvent) => {
         e.stopPropagation();
+        
         if (isExpanded) {
             setIsClosing(true);
             setTimeout(() => {
@@ -307,37 +322,40 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
         }
     };
 
+    const handleCardClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        // Allow expansion for all appointments, including attended ones
+        handleExpand(e);
+    };
+
     return (
         <div className="border-b border-gray-200 dark:border-zinc-700 last:border-b-0">
             {/* Main Appointment Item */}
             <div 
-                className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 w-full hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors cursor-pointer" 
-                onClick={(e) => { 
-                    e.stopPropagation(); 
-                    handleExpand(e);
-                }}
+                className={`flex items-center gap-2 sm:gap-3 p-3 sm:p-4 w-full transition-colors cursor-pointer ${isAttended ? 'opacity-60 hover:bg-gray-50/50 dark:hover:bg-gray-900/15' : 'hover:bg-gray-50 dark:hover:bg-gray-900/30'}`}
+                onClick={handleCardClick}
             >
-                <div className="flex size-9 sm:size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-[#392c28]">
+                <div className={`flex size-9 sm:size-11 shrink-0 items-center justify-center rounded-lg ${isAttended ? 'bg-zinc-100/70 dark:bg-[#392c28]/50' : 'bg-zinc-100 dark:bg-[#392c28]'}`}>
                     <Icon name="schedule" />
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="space-y-1">
-                        <p className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white break-words">{clientName}</p>
-                        <p className="text-xs sm:text-sm font-semibold text-zinc-500 dark:text-zinc-400">{formatAppointmentTime(appointment.time)}</p>
-                        <div className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusStyles[appointment.status]}`}>
+                        <p className={`text-sm sm:text-base font-bold break-words ${isAttended ? 'text-zinc-600 dark:text-zinc-500' : 'text-zinc-900 dark:text-white'}`}>{clientName}</p>
+                        <p className={`text-xs sm:text-sm font-semibold ${isAttended ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-500 dark:text-zinc-400'}`}>{formatAppointmentTime(appointment.time)}</p>
+                        <div className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusStyles[appointment.status] || statusStyles[AppointmentStatus.Attended]}`}>
                             {appointment.status === AppointmentStatus.Confirmed && 'Confirmado'}
                             {appointment.status === AppointmentStatus.Arrived && 'Chegou'}
-                            {appointment.status === AppointmentStatus.Attended && 'Atendido'}
+                            {(appointment.status === AppointmentStatus.Attended || String(appointment.status) === 'Atendido') && 'Atendido'}
                         </div>
-                        <p className="text-xs text-zinc-600 dark:text-zinc-400 truncate">{appointment.service}</p>
+                        <p className={`text-xs truncate ${isAttended ? 'text-zinc-500 dark:text-zinc-500' : 'text-zinc-600 dark:text-zinc-400'}`}>{appointment.service}</p>
                     </div>
                 </div>
                 <div className="flex flex-col items-center gap-2 shrink-0">
                     {whatsappNumber && (
                         <button
                             onClick={handleWhatsAppClick}
-                            className="flex size-8 sm:size-9 items-center justify-center rounded-lg bg-primary hover:bg-primary/90 transition-colors flex-shrink-0"
-                            title="Abrir WhatsApp"
+                            className={`flex size-8 sm:size-9 items-center justify-center rounded-lg transition-colors flex-shrink-0 ${isAttended ? 'bg-primary/60 hover:bg-primary/70 cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}
+                            title={isAttended ? "WhatsApp desabilitado para agendamentos atendidos" : "Abrir WhatsApp"}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5 fill-white">
                                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
@@ -351,47 +369,66 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
             {isExpanded && (
                 <div className={`${isClosing ? 'action-bar-exit' : 'action-bar-enter'} overflow-hidden`}>
                     <div className="px-3 sm:px-5 py-2 bg-gray-50 dark:bg-zinc-900/20 border-t border-gray-200 dark:border-zinc-700/50 flex justify-center gap-3 sm:gap-4">
-                        {/* Finalizar */}
-                        <button
-                            onClick={(e) => { 
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onFinalize(appointment);
-                            }}
-                            className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium transition-all active:scale-95 text-xs"
-                            title="Finalizar atendimento"
-                        >
-                            <span className="material-symbols-outlined text-base">check_circle</span>
-                            <span>Finalizar</span>
-                        </button>
-                        
-                        {/* Editar */}
-                        <button
-                            onClick={(e) => { 
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onEdit(appointment);
-                            }}
-                            className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium transition-all active:scale-95 text-xs"
-                            title="Editar agendamento"
-                        >
-                            <span className="material-symbols-outlined text-base">edit</span>
-                            <span>Editar</span>
-                        </button>
-                        
-                        {/* Excluir */}
-                        <button
-                            onClick={(e) => { 
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onDelete(appointment);
-                            }}
-                            className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium transition-all active:scale-95 text-xs"
-                            title="Excluir agendamento"
-                        >
-                            <span className="material-symbols-outlined text-base">delete</span>
-                            <span>Excluir</span>
-                        </button>
+                        {/* Use EXACT same check as badge - if badge shows "Atendido", show only one button */}
+                        {(appointment.status === AppointmentStatus.Attended || String(appointment.status) === 'Atendido') ? (
+                            /* For attended appointments, show only "Go to finalized services" button */
+                            <button
+                                onClick={(e) => { 
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onClick();
+                                }}
+                                className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium transition-all active:scale-95 text-xs"
+                                title="Ver serviços finalizados"
+                            >
+                                <span className="material-symbols-outlined text-base">arrow_forward</span>
+                                <span>Ir para Serviços Finalizados</span>
+                            </button>
+                        ) : (
+                            <>
+                                {/* Finalizar */}
+                                <button
+                                    onClick={(e) => { 
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        onFinalize(appointment);
+                                    }}
+                                    className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium transition-all active:scale-95 text-xs"
+                                    title="Finalizar atendimento"
+                                >
+                                    <span className="material-symbols-outlined text-base">check_circle</span>
+                                    <span>Finalizar</span>
+                                </button>
+                                
+                                {/* Editar */}
+                                <button
+                                    onClick={(e) => { 
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        onEdit(appointment);
+                                    }}
+                                    className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium transition-all active:scale-95 text-xs"
+                                    title="Editar agendamento"
+                                >
+                                    <span className="material-symbols-outlined text-base">edit</span>
+                                    <span>Editar</span>
+                                </button>
+                                
+                                {/* Excluir */}
+                                <button
+                                    onClick={(e) => { 
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        onDelete(appointment);
+                                    }}
+                                    className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium transition-all active:scale-95 text-xs"
+                                    title="Excluir agendamento"
+                                >
+                                    <span className="material-symbols-outlined text-base">delete</span>
+                                    <span>Excluir</span>
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
@@ -472,6 +509,14 @@ export const DashboardPage: React.FC = () => {
     }, [todayStats]);
 
     const handleOpenOptionsModal = (appointment: Appointment) => {
+        // If appointment is already attended, navigate to finalized services of today
+        if (appointment.status === AppointmentStatus.Attended || 
+            String(appointment.status) === 'Atendido' ||
+            String(appointment.status).toLowerCase() === 'atendido') {
+            navigate('/finalized-services?from=dashboard');
+            return;
+        }
+        
         setSelectedAppointment(appointment);
         setIsOptionsModalOpen(true);
     };
@@ -479,7 +524,24 @@ export const DashboardPage: React.FC = () => {
     const handleOpenFinalizeModal = (apt?: Appointment) => {
         const appointment = apt || selectedAppointment;
         if (!appointment) return;
-        setFinalizeData(appointment, handleFinalizeAppointment, '/finalized-services');
+        
+        // Create a handler that captures the appointment in its closure
+        const handleFinalizeWithAppointment = async (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => {
+            try {
+                await Promise.all([
+                    addTransaction({
+                        ...transactionData,
+                        date: getTodayLocalDate(),
+                    }),
+                    updateAppointmentStatus(appointment.id, AppointmentStatus.Attended)
+                ]);
+            } catch (error) {
+                console.error('Error in handleFinalizeWithAppointment:', error);
+                throw error;
+            }
+        };
+        
+        setFinalizeData(appointment, handleFinalizeWithAppointment, '/finalized-services');
         navigate('/finalize-appointment');
     };
 
@@ -514,20 +576,6 @@ export const DashboardPage: React.FC = () => {
             console.error('Failed to delete appointment:', error);
             setIsDeleteConfirmModalOpen(false);
         }
-    };
-
-    const handleFinalizeAppointment = async (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => {
-        if (!selectedAppointment) return;
-
-        await Promise.all([
-             addTransaction({
-                ...transactionData,
-                date: getTodayLocalDate(),
-            }),
-            updateAppointmentStatus(selectedAppointment.id, AppointmentStatus.Attended)
-        ]);
-
-        setSelectedAppointment(null);
     };
 
     return (

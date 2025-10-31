@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, createContext, useContext, useMemo, useCallback, useRef } from 'react';
 import { Service, Appointment, AppointmentStatus, Transaction } from './types.ts';
 import { supabase } from './services/supabaseClient.ts';
 import type { User, Session } from '@supabase/supabase-js';
@@ -321,13 +321,19 @@ export const AppointmentsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }, []);
 
     const updateAppointmentStatus = useCallback(async (appointmentId: number, status: AppointmentStatus) => {
-        const { data, error } = await supabase.from('appointments').update({ status }).eq('id', appointmentId).select();
+        const statusValue = String(status); // Ensure it's a string
+        
+        const { data, error } = await supabase
+            .from('appointments')
+            .update({ status: statusValue })
+            .eq('id', appointmentId)
+            .select();
 
         if (error) {
             console.error('Error updating appointment status:', error);
             throw error;
         }
-        if (data) {
+        if (data && data.length > 0) {
             const { clientname, ...rest } = data[0];
             const mappedAppointment = { ...rest, clientName: clientname };
             setAppointments(prev => prev.map(app => 
@@ -369,28 +375,52 @@ export const useFinalizeAppointment = () => {
 
 export const FinalizeAppointmentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [appointment, setAppointment] = useState<Appointment | null>(null);
-    const [onFinalize, setOnFinalize] = useState<((transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) | null>(null);
     const [redirectTo, setRedirectTo] = useState<string | null>(null);
+    // Use useRef to store the function directly to avoid React state update issues
+    const onFinalizeRef = useRef<((transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>) | null>(null);
+    const [, forceUpdate] = useState(0);
 
     const setFinalizeData = useCallback((apt: Appointment, handler: (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => Promise<void>, redirect?: string) => {
         setAppointment(apt);
-        setOnFinalize(() => handler);
+        onFinalizeRef.current = handler; // Store handler function directly in ref
         setRedirectTo(redirect || null);
+        forceUpdate(prev => prev + 1); // Force re-render to update context value
     }, []);
 
     const clearFinalizeData = useCallback(() => {
         setAppointment(null);
-        setOnFinalize(null);
+        onFinalizeRef.current = null;
         setRedirectTo(null);
+        forceUpdate(prev => prev + 1);
     }, []);
 
-    const value = useMemo(() => ({
-        appointment,
-        onFinalize,
-        redirectTo,
-        setFinalizeData,
-        clearFinalizeData,
-    }), [appointment, onFinalize, redirectTo, setFinalizeData, clearFinalizeData]);
+    // Create a stable function that calls the ref
+    const onFinalize = useCallback(async (transactionData: Omit<Transaction, 'id' | 'date' | 'created_at'>) => {
+        if (!onFinalizeRef.current) {
+            throw new Error('onFinalize function is not available');
+        }
+        
+        if (typeof onFinalizeRef.current !== 'function') {
+            throw new Error('onFinalize function is not a function');
+        }
+        
+        try {
+            return await onFinalizeRef.current(transactionData);
+        } catch (error) {
+            console.error('Error in onFinalizeRef.current:', error);
+            throw error;
+        }
+    }, []);
+
+    const value = useMemo(() => {
+        return {
+            appointment,
+            onFinalize, // Always return the stable function, it will check the ref internally
+            redirectTo,
+            setFinalizeData,
+            clearFinalizeData,
+        };
+    }, [appointment, onFinalize, redirectTo, setFinalizeData, clearFinalizeData]);
 
     return (
         <FinalizeAppointmentContext.Provider value={value}>

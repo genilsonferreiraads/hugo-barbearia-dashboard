@@ -21,8 +21,6 @@ export const FinalizedServicesPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     
-    console.log('FinalizedServicesPage mounted/rendered, location:', location.pathname);
-    
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [filterType, setFilterType] = useState<'all' | 'agendado' | 'avulso'>('all');
     const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>(() => {
@@ -53,13 +51,10 @@ export const FinalizedServicesPage: React.FC = () => {
     const handleEditClick = (transaction: any) => {
         setEditTransactionData(transaction, async (updates) => {
             try {
-                console.log('onSave callback started, updating transaction...');
                 await updateTransaction(transaction.id, updates);
-                console.log('updateTransaction completed');
                 // Clear the edit context after a small delay to ensure navigation completes
                 setTimeout(() => {
                     clearEditTransactionData();
-                    console.log('Context cleared');
                 }, 200);
             } catch (error) {
                 console.error('Erro ao atualizar:', error);
@@ -165,7 +160,10 @@ export const FinalizedServicesPage: React.FC = () => {
 
     // Format currency
     const formatCurrency = (value: number): string => {
-        return `R$ ${value.toFixed(2).replace('.', ',')}`;
+        const fixedValue = value.toFixed(2);
+        const [integerPart, decimalPart] = fixedValue.split('.');
+        const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        return `R$ ${formattedInteger},${decimalPart}`;
     };
 
     // Extract client name (remove WhatsApp if present)
@@ -176,24 +174,22 @@ export const FinalizedServicesPage: React.FC = () => {
     // Calculate totals
     const totals = useMemo(() => {
         return {
-            all: filteredTransactions.reduce((sum, t) => sum + t.value, 0),
+            all: filteredTransactions.reduce((sum, t) => sum + t.value, 0), // Total já considera descontos aplicados
             count: filteredTransactions.length,
-            subtotal: filteredTransactions.reduce((sum, t) => sum + t.subtotal, 0),
-            discount: filteredTransactions.reduce((sum, t) => sum + t.discount, 0),
         };
     }, [filteredTransactions]);
 
-    const dateRangeLabel = () => {
+    const getTotalLabel = () => {
         switch(dateFilter) {
             case 'today':
-                return 'Hoje';
+                return 'Total Hoje';
             case 'week':
-                return 'Esta semana';
+                return 'Total Semana';
             case 'month':
-                return 'Este mês';
+                return 'Total Mês';
             case 'all':
             default:
-                return 'Todos os períodos';
+                return 'Total Todo Tempo';
         }
     };
 
@@ -214,34 +210,34 @@ export const FinalizedServicesPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Filter Buttons */}
-            <div className="flex flex-wrap gap-2 mb-6">
+            {/* Category Filter Buttons */}
+            <div className="flex flex-wrap gap-2 mb-4">
                 <button
                     onClick={() => setFilterType('all')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
                         filterType === 'all'
-                            ? 'bg-primary text-white'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                            ? 'bg-blue-500 text-white shadow-md'
+                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 border border-blue-300 dark:border-blue-700'
                     }`}
                 >
                     Todos
                 </button>
                 <button
                     onClick={() => setFilterType('agendado')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
                         filterType === 'agendado'
-                            ? 'bg-primary text-white'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                            ? 'bg-blue-500 text-white shadow-md'
+                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 border border-blue-300 dark:border-blue-700'
                     }`}
                 >
                     Agendados
                 </button>
                 <button
                     onClick={() => setFilterType('avulso')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
                         filterType === 'avulso'
-                            ? 'bg-primary text-white'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                            ? 'bg-blue-500 text-white shadow-md'
+                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 border border-blue-300 dark:border-blue-700'
                     }`}
                 >
                     Avulsos
@@ -254,7 +250,7 @@ export const FinalizedServicesPage: React.FC = () => {
                     onClick={() => setDateFilter('today')}
                     className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                         dateFilter === 'today'
-                            ? 'bg-primary text-white'
+                            ? 'bg-primary text-white shadow-md'
                             : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
                     }`}
                 >
@@ -264,7 +260,7 @@ export const FinalizedServicesPage: React.FC = () => {
                     onClick={() => setDateFilter('week')}
                     className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                         dateFilter === 'week'
-                            ? 'bg-primary text-white'
+                            ? 'bg-primary text-white shadow-md'
                             : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
                     }`}
                 >
@@ -274,7 +270,7 @@ export const FinalizedServicesPage: React.FC = () => {
                     onClick={() => setDateFilter('month')}
                     className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                         dateFilter === 'month'
-                            ? 'bg-primary text-white'
+                            ? 'bg-primary text-white shadow-md'
                             : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
                     }`}
                 >
@@ -284,7 +280,7 @@ export const FinalizedServicesPage: React.FC = () => {
                     onClick={() => setDateFilter('all')}
                     className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                         dateFilter === 'all'
-                            ? 'bg-primary text-white'
+                            ? 'bg-primary text-white shadow-md'
                             : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
                     }`}
                 >
@@ -293,18 +289,10 @@ export const FinalizedServicesPage: React.FC = () => {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                 <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Total Arrecadado</p>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">{getTotalLabel()}</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totals.all)}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Subtotal</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totals.subtotal)}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Descontos</p>
-                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCurrency(totals.discount)}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Serviços</p>
@@ -319,82 +307,138 @@ export const FinalizedServicesPage: React.FC = () => {
                     <p className="text-gray-600 dark:text-gray-400 text-lg">Nenhum serviço finalizado nesta categoria</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4">
                     {sortedTransactions.map((transaction) => (
                         <div
                             key={transaction.id}
-                            onClick={() => setSelectedTransaction(transaction)}
-                            className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                            onClick={() => navigate(`/transaction/${transaction.id}`)}
+                            className="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 p-3 sm:p-4 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                         >
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-start">
-                                {/* Client Info */}
-                                <div>
-                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Cliente</p>
-                                    <p className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">{getClientName(transaction.clientName)}</p>
-                                </div>
-
-                                {/* Date */}
-                                <div>
-                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Data</p>
-                                    <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">{formatDate(transaction.date)}</p>
-                                </div>
-
-                                {/* Service */}
-                                <div>
-                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Serviço</p>
-                                    <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate">{transaction.service || '-'}</p>
-                                </div>
-
-                                {/* Payment Method */}
-                                <div>
-                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Pagamento</p>
-                                    <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">{transaction.paymentMethod}</p>
-                                </div>
-
-                                {/* Values */}
-                                <div className="flex flex-col gap-1">
-                                    <div>
-                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Valor Total</p>
-                                        <p className="text-base sm:text-lg font-bold text-primary">{formatCurrency(transaction.value)}</p>
+                            {/* Mobile Layout */}
+                            <div className="block sm:hidden">
+                                <div className="flex items-start justify-between gap-3">
+                                    {/* Left side - Name, Date, Category */}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-bold text-gray-900 dark:text-white break-words mb-0.5">
+                                            {getClientName(transaction.clientName)}
+                                        </p>
+                                        <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 mb-0.5">
+                                            <span className="material-symbols-outlined text-sm">calendar_today</span>
+                                            <span>{formatDate(transaction.date)}</span>
+                                        </div>
+                                        <span
+                                            className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                                                transaction.type === 'agendado'
+                                                    ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
+                                                    : 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
+                                            }`}
+                                        >
+                                            {transaction.type === 'agendado' ? '📅 Agendado' : '⚡ Avulso'}
+                                        </span>
                                     </div>
-                                    {transaction.discount > 0 && (
-                                        <p className="text-xs text-red-600 dark:text-red-400">Desc: {formatCurrency(transaction.discount)}</p>
-                                    )}
+
+                                    {/* Right side - Value and buttons */}
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                        <div className="text-right">
+                                            <p className="text-base font-bold text-primary">
+                                                {formatCurrency(transaction.value)}
+                                            </p>
+                                            {transaction.discount > 0 && (
+                                                <p className="text-[10px] text-red-600 dark:text-red-400">
+                                                    Desc: {formatCurrency(transaction.discount)}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleEditClick(transaction);
+                                                }}
+                                                className="flex items-center justify-center size-7 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                                                title="Editar"
+                                            >
+                                                <span className="material-symbols-outlined text-base">edit</span>
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteClick(transaction);
+                                                }}
+                                                className="flex items-center justify-center size-7 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                                title="Deletar"
+                                            >
+                                                <span className="material-symbols-outlined text-base">delete</span>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Type Badge */}
-                            <div className="mt-4 flex items-center justify-between">
-                                <span
-                                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                        transaction.type === 'agendado'
-                                            ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
-                                            : 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
-                                    }`}
-                                >
-                                    {transaction.type === 'agendado' ? '📅 Agendado' : '⚡ Avulso'}
-                                </span>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEditClick(transaction);
-                                        }}
-                                        className="text-primary dark:text-white hover:text-primary/70 dark:hover:text-white/70 transition-colors"
-                                        title="Editar"
-                                    >
-                                        <i className="fa-solid fa-pen-to-square"></i>
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteClick(transaction);
-                                        }}
-                                        className="text-primary dark:text-white hover:text-primary/70 dark:hover:text-white/70 transition-colors"
-                                        title="Deletar"
-                                    >
-                                        <i className="fa-solid fa-trash"></i>
-                                    </button>
+                            {/* Desktop Layout */}
+                            <div className="hidden sm:flex items-center justify-between gap-3">
+                                {/* Left side - Main info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-base font-bold text-gray-900 dark:text-white truncate">
+                                            {getClientName(transaction.clientName)}
+                                        </p>
+                                        <span
+                                            className={`px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${
+                                                transaction.type === 'agendado'
+                                                    ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
+                                                    : 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
+                                            }`}
+                                        >
+                                            {transaction.type === 'agendado' ? '📅' : '⚡'}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                                        <span className="flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-base">calendar_today</span>
+                                            {formatDate(transaction.date)}
+                                        </span>
+                                        <span className="hidden sm:inline">•</span>
+                                        <span className="truncate">{transaction.service || '-'}</span>
+                                        <span className="hidden sm:inline">•</span>
+                                        <span className="hidden sm:inline">{transaction.paymentMethod}</span>
+                                    </div>
+                                </div>
+
+                                {/* Right side - Value and actions */}
+                                <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                                    <div className="text-right">
+                                        <p className="text-lg font-bold text-primary">
+                                            {formatCurrency(transaction.value)}
+                                        </p>
+                                        {transaction.discount > 0 && (
+                                            <p className="text-xs text-red-600 dark:text-red-400">
+                                                Desc: {formatCurrency(transaction.discount)}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-1 sm:gap-2">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEditClick(transaction);
+                                            }}
+                                            className="flex items-center justify-center size-9 rounded-lg text-primary dark:text-white hover:bg-primary/10 dark:hover:bg-primary/20 transition-colors"
+                                            title="Editar"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">edit</span>
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteClick(transaction);
+                                            }}
+                                            className="flex items-center justify-center size-9 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                            title="Deletar"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">delete</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
