@@ -60,10 +60,12 @@ export const ServiceRegistryPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [clientName, setClientName] = useState('');
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
-  const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: PaymentMethod.Pix, amount: '0,00' }]);
+  const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: '' as PaymentMethod, amount: '0,00' }]);
   const [discount, setDiscount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [showAllServices, setShowAllServices] = useState(false);
 
   const subtotal = useMemo(() => {
     return selectedServices.reduce((acc, service) => acc + service.price, 0);
@@ -78,6 +80,8 @@ export const ServiceRegistryPage: React.FC = () => {
     const total = subtotal - discountValue;
     return total < 0 ? 0 : total;
   }, [subtotal, discountValue]);
+
+  const displayedServices = showAllServices ? services : services.slice(0, 3);
 
   useEffect(() => {
     if (payments.length === 1) {
@@ -132,7 +136,9 @@ export const ServiceRegistryPage: React.FC = () => {
     setClientName('');
     setSelectedServices([]);
     setDiscount('');
-    setPayments([{ id: Date.now(), method: PaymentMethod.Pix, amount: '0,00' }]);
+    setPayments([{ id: Date.now(), method: '' as PaymentMethod, amount: '0,00' }]);
+    setPaymentError(null);
+    setShowAllServices(false);
   };
 
   const handleNextStep = () => {
@@ -149,13 +155,34 @@ export const ServiceRegistryPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Se estiver no passo 1, não deve submeter
+    if (currentStep === 1) {
+      return;
+    }
+    
+    setPaymentError(null);
+    
     if (!clientName || selectedServices.length === 0) {
       setToast({ message: "Por favor, preencha o nome do cliente e selecione ao menos um serviço.", type: 'error' });
       return;
     }
     
+    // Validar se há pelo menos um método de pagamento válido
+    const validPayments = payments.filter(p => {
+      const amount = parseFloat(p.amount.replace(',', '.')) || 0;
+      return amount > 0 && p.method;
+    });
+    
+    if (validPayments.length === 0) {
+      setPaymentError("Por favor, selecione um método de pagamento válido.");
+      setToast({ message: "Por favor, selecione um método de pagamento válido.", type: 'error' });
+      return;
+    }
+    
     const totalPaid = payments.reduce((acc, p) => acc + (parseFloat(p.amount.replace(',', '.')) || 0), 0);
     if (Math.abs(totalPaid - totalValue) > 0.01) {
+        setPaymentError(`O total pago (R$ ${totalPaid.toFixed(2)}) não corresponde ao valor final (R$ ${totalValue.toFixed(2)}).`);
         setToast({ 
           message: `O total pago (R$ ${totalPaid.toFixed(2)}) não corresponde ao valor final (R$ ${totalValue.toFixed(2)}). Ajuste os valores.`, 
           type: 'error' 
@@ -176,7 +203,7 @@ export const ServiceRegistryPage: React.FC = () => {
         });
 
         handleClear();
-        navigate('/finalized-services', { state: { successMessage: 'Salvo com sucesso!' } });
+        navigate('/register-service', { state: { successMessage: 'Salvo com sucesso!' } });
     } catch (error: any) {
         console.error("Failed to register service:", error);
         setToast({ 
@@ -193,43 +220,47 @@ export const ServiceRegistryPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background-light to-gray-50 dark:from-background-dark dark:to-gray-900 flex flex-col">
         {/* Header with Progress */}
-        <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm">
-            <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3">
-                <div className="flex items-center justify-between mb-4">
-                    <button 
-                        onClick={handleClear}
-                        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-sm"
-                    >
-                        <Icon name="refresh" className="text-lg" />
-                        <span className="text-xs font-medium">Limpar</span>
-                    </button>
-                    
-                    <div className="text-center">
-                        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Atendimento Avulso</h1>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Passo {currentStep} de 2</p>
+        <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm inset-x-0">
+            <div className="w-full px-4 sm:px-6 py-3">
+                <div className="max-w-md mx-auto">
+                    <div className="flex items-center justify-between mb-4">
+                        <button 
+                            onClick={() => navigate(-1)}
+                            className="flex items-center justify-center size-10 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
+                            title="Voltar"
+                        >
+                            <Icon name="arrow_back" className="text-xl" />
+                        </button>
+                        
+                        <div className="text-center flex-1">
+                            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Novo Atendimento</h1>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Passo {currentStep} de 2</p>
+                        </div>
+                        
+                        <div className="w-10" />
                     </div>
-                    
-                    <div className="w-16" />
-                </div>
 
-                {/* Progress Bar */}
-                <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                        className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
-                        style={{ width: `${progressPercentage}%` }}
-                    />
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                            className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
+                            style={{ width: `${progressPercentage}%` }}
+                        />
+                    </div>
                 </div>
             </div>
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 max-w-2xl w-full mx-auto px-4 sm:px-6 py-6">
+        <main className="flex-1 w-full py-6">
+            <div className="max-w-2xl w-full mx-auto px-4 sm:px-6">
             <form onSubmit={handleSubmit}>
                 {/* Step 1: Client and Services */}
                 {currentStep === 1 && (
-                    <div className="space-y-5 animate-fade-in">
+                    <div className="space-y-4 animate-fade-in">
                         {/* Client Name */}
-                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
+                        <div className="max-w-md mx-auto">
+                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
                             <label className="block space-y-2">
                                 <p className="text-sm font-semibold text-gray-900 dark:text-white">Nome do Cliente</p>
                                 <input 
@@ -240,52 +271,88 @@ export const ServiceRegistryPage: React.FC = () => {
                                     placeholder="Digite o nome do cliente"
                                     value={clientName}
                                     onChange={(e) => setClientName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            if (clientName.trim() && selectedServices.length > 0) {
+                                                handleNextStep();
+                                            }
+                                        }
+                                    }}
                                 />
                             </label>
+                            </div>
                         </div>
 
                         {/* Services */}
-                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
-                            <div className="flex items-baseline justify-between">
+                        <div className="max-w-md mx-auto">
+                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-800 space-y-2">
+                            <div className="flex items-baseline justify-between mb-1.5">
                                 <div>
-                                    <h3 className="text-base font-bold text-gray-900 dark:text-white">Serviços</h3>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    <h3 className="text-sm font-bold text-gray-900 dark:text-white">Serviços</h3>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
                                         {selectedServices.length} serviço{selectedServices.length !== 1 ? 's' : ''} selecionado{selectedServices.length !== 1 ? 's' : ''}
                                     </p>
                                 </div>
-                                <p className="text-2xl font-bold text-primary">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
+                                <p className="text-xl font-bold text-primary">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
                             </div>
 
-                            <div className="flex flex-wrap gap-2">
-                                {services.map(service => {
+                            <div className="flex flex-wrap gap-1.5">
+                                {displayedServices.map(service => {
                                     const isSelected = selectedServices.some(s => s.id === service.id);
                                     return (
                                         <button 
                                             key={service.id}
                                             type="button"
                                             onClick={() => handleServiceToggle(service)}
-                                            className={`p-2 rounded-lg border-2 transition-all text-sm ${
+                                            className={`p-1.5 rounded-lg border-2 transition-all ${
                                                 isSelected
                                                     ? 'bg-primary/10 border-primary'
                                                     : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:bg-gray-100 dark:hover:bg-gray-800'
                                             }`}
                                         >
-                                            <div className="flex items-center gap-2">
-                                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                                            <div className="flex items-center gap-1.5">
+                                                <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
                                                     isSelected
                                                         ? 'bg-primary border-primary'
                                                         : 'border-gray-300 dark:border-gray-600'
                                                 }`}>
-                                                    {isSelected && <Icon name="check" className="text-white text-xs" />}
+                                                    {isSelected && <Icon name="check" className="text-white text-[10px]" />}
                                                 </div>
-                                                <div className="text-left">
-                                                    <p className="font-semibold text-gray-900 dark:text-white text-xs">{service.name}</p>
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400">R$ {service.price.toFixed(2).replace('.', ',')}</p>
+                                                <div className="text-left min-w-0">
+                                                    <p className="font-semibold text-gray-900 dark:text-white text-[11px] leading-tight truncate">{service.name}</p>
+                                                    <p className="text-[10px] text-gray-600 dark:text-gray-400">R$ {service.price.toFixed(2).replace('.', ',')}</p>
                                                 </div>
                                             </div>
                                         </button>
                                     );
                                 })}
+                            </div>
+
+                            {services.length > 3 && (
+                                <div className="mt-2 text-center">
+                                    {!showAllServices && (
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowAllServices(true)}
+                                            className="inline-flex items-center gap-1 text-primary hover:text-primary/80 font-semibold transition-colors text-xs"
+                                        >
+                                            <Icon name="expand_more" className="text-base" />
+                                            <span>Exibir todos ({services.length})</span>
+                                        </button>
+                                    )}
+                                    {showAllServices && (
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowAllServices(false)}
+                                            className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 font-semibold transition-colors text-xs"
+                                        >
+                                            <Icon name="expand_less" className="text-base" />
+                                            <span>Mostrar menos</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             </div>
                         </div>
                     </div>
@@ -293,7 +360,7 @@ export const ServiceRegistryPage: React.FC = () => {
 
                 {/* Step 2: Payment */}
                 {currentStep === 2 && (
-                    <div className="space-y-5 animate-fade-in">
+                    <div className="space-y-4 animate-fade-in">
                         {/* Total Card */}
                         <div className="bg-gradient-to-br from-primary/15 to-primary/5 dark:from-primary/20 dark:to-primary/10 rounded-lg p-6 border border-primary/30 text-center">
                             <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Total a Pagar</p>
@@ -329,10 +396,18 @@ export const ServiceRegistryPage: React.FC = () => {
                         </div>
 
                         {/* Payment Methods */}
-                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
-                            <h3 className="text-base font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
-                            
-                            <div className="space-y-3">
+                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-base font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
+                                <span className="text-xs text-red-600 dark:text-red-400 font-semibold">* Obrigatório</span>
+                            </div>
+                            {paymentError && (
+                                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                                    <p className="text-sm text-red-600 dark:text-red-400">{paymentError}</p>
+                                </div>
+                            )}
+
+                            <div className="space-y-2.5">
                                 {payments.map((payment, index) => (
                                     <div key={payment.id} className="space-y-3">
                                         {payments.length > 1 && (
@@ -344,9 +419,18 @@ export const ServiceRegistryPage: React.FC = () => {
                                                 <label className="text-xs font-semibold text-gray-900 dark:text-white block">Método</label>
                                                 <select 
                                                     value={payment.method}
-                                                    onChange={e => handlePaymentChange(payment.id, 'method', e.target.value)}
-                                                    className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                                    onChange={e => {
+                                                        handlePaymentChange(payment.id, 'method', e.target.value);
+                                                        setPaymentError(null);
+                                                    }}
+                                                    required
+                                                    className={`w-full h-9 rounded-lg border px-3 text-xs font-medium text-gray-900 dark:text-white focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all ${
+                                                        paymentError && (!payment.method || (parseFloat(payment.amount.replace(',', '.')) || 0) <= 0)
+                                                            ? 'border-red-500 dark:border-red-500 bg-white dark:bg-gray-800 focus:border-red-500'
+                                                            : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:border-primary'
+                                                    }`}
                                                 >
+                                                    <option value="">Selecione um método...</option>
                                                     {paymentMethodOptions.map(m => <option key={m} value={m}>{m}</option>)}
                                                 </select>
                                             </div>
@@ -359,7 +443,10 @@ export const ServiceRegistryPage: React.FC = () => {
                                                         type="text"
                                                         placeholder="0,00"
                                                         value={payment.amount}
-                                                        onChange={e => handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value))}
+                                                        onChange={e => {
+                                                            handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value));
+                                                            setPaymentError(null);
+                                                        }}
                                                         className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-10 pr-3 text-xs font-semibold text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
                                                     />
                                                 </div>
@@ -397,17 +484,19 @@ export const ServiceRegistryPage: React.FC = () => {
                 )}
 
                 {/* Action Buttons */}
-                <div className="mt-8 flex gap-3 sm:justify-end flex-wrap sm:flex-nowrap">
+                <div className="mt-6 flex gap-3 justify-center">
                     {currentStep === 1 && (
-                        <button 
-                            type="button" 
-                            onClick={handleNextStep}
-                            disabled={!clientName.trim() || selectedServices.length === 0}
-                            className="flex-1 sm:flex-auto px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
-                            <span>Continuar</span>
-                            <Icon name="arrow_forward" className="text-base" />
-                        </button>
+                        <div className="max-w-md w-full">
+                            <button 
+                                type="button" 
+                                onClick={handleNextStep}
+                                disabled={!clientName.trim() || selectedServices.length === 0}
+                                className="w-full px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                            >
+                                <span>Continuar</span>
+                                <Icon name="arrow_forward" className="text-base" />
+                            </button>
+                        </div>
                     )}
                     {currentStep === 2 && (
                         <>
@@ -439,7 +528,8 @@ export const ServiceRegistryPage: React.FC = () => {
                         </>
                     )}
                 </div>
-            </form>
+                </form>
+            </div>
         </main>
 
         {toast && (

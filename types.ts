@@ -6,6 +6,13 @@ export interface Service {
   created_at?: string;
 }
 
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+  created_at?: string;
+}
+
 export enum AppointmentStatus {
   Confirmed = "Confirmado",
   Arrived = "Chegou",
@@ -38,6 +45,7 @@ export interface Transaction {
   value: number; // Final total after discount
   subtotal: number;
   discount: number;
+  type?: 'service' | 'product'; // Tipo da transação: serviço ou produto
   created_at?: string;
 }
 

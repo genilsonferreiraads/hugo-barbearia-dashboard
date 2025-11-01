@@ -97,7 +97,7 @@ export const AppointmentDetailPage: React.FC<AppointmentDetailPageProps> = ({ ap
             ]);
         };
 
-        setFinalizeData(appointment, onFinalizeHandler, '/finalized-services');
+        setFinalizeData(appointment, onFinalizeHandler, '/register-service');
         navigate('/finalize-appointment');
     };
 

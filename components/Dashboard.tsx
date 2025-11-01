@@ -379,10 +379,10 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
                                     onClick();
                                 }}
                                 className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium transition-all active:scale-95 text-xs"
-                                title="Ver serviços finalizados"
+                                title="Ver atendimentos finalizados"
                             >
                                 <span className="material-symbols-outlined text-base">arrow_forward</span>
-                                <span>Ir para Serviços Finalizados</span>
+                                <span>Atendimentos Finalizados</span>
                             </button>
                         ) : (
                             <>
@@ -471,12 +471,23 @@ export const DashboardPage: React.FC = () => {
     const todayStats = useMemo(() => {
         const todayStr = getTodayLocalDate();
         const todayTransactions = transactions.filter(tx => tx.date === todayStr);
+        
+        // Separar serviços e vendas de produtos
+        const todayServices = todayTransactions.filter(tx => 
+            tx.type !== 'product' && tx.clientName !== 'Venda de Produto'
+        );
+        const todaySales = todayTransactions.filter(tx => 
+            tx.type === 'product' || tx.clientName === 'Venda de Produto'
+        );
 
         const totalRevenue = todayTransactions.reduce((acc, tx) => acc + tx.value, 0);
-        const servicesCompleted = todayTransactions.length;
-        const averageTicket = servicesCompleted > 0 ? totalRevenue / servicesCompleted : 0;
+        const servicesCompleted = todayServices.length;
+        const salesCompleted = todaySales.length;
+        const averageTicket = servicesCompleted > 0 
+            ? todayServices.reduce((acc, tx) => acc + tx.value, 0) / servicesCompleted 
+            : 0;
         
-        return { totalRevenue, servicesCompleted, averageTicket };
+        return { totalRevenue, servicesCompleted, salesCompleted, averageTicket };
     }, [transactions]);
     
     const sortedTodayAppointments = useMemo(() => {
@@ -513,7 +524,7 @@ export const DashboardPage: React.FC = () => {
         if (appointment.status === AppointmentStatus.Attended || 
             String(appointment.status) === 'Atendido' ||
             String(appointment.status).toLowerCase() === 'atendido') {
-            navigate('/finalized-services?from=dashboard');
+            navigate('/register-service?from=dashboard');
             return;
         }
         
@@ -541,7 +552,7 @@ export const DashboardPage: React.FC = () => {
             }
         };
         
-        setFinalizeData(appointment, handleFinalizeWithAppointment, '/finalized-services');
+        setFinalizeData(appointment, handleFinalizeWithAppointment, '/register-service');
         navigate('/finalize-appointment');
     };
 
@@ -592,23 +603,33 @@ export const DashboardPage: React.FC = () => {
                         <span className="sm:hidden">{new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'short'})}</span>
                     </div>
                     <button 
-                        onClick={() => {
-                            const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
-                                await addAppointment(appointmentData);
-                            };
-                            setNewAppointmentData(handleSaveAppointment, getTodayLocalDate());
-                            navigate('/new-appointment');
-                        }}
+                        onClick={() => navigate('/register-service/new')}
                         className="flex w-full sm:w-auto cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] transition-transform active:scale-95">
                         <span className="material-symbols-outlined text-base">add</span>
-                        <span className="truncate">Novo Agendamento</span>
+                        <span className="truncate">Novo Atendimento</span>
                     </button>
                 </div>
             </div>
             
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-6">
                 <div className="flex flex-col gap-4 lg:col-span-1">
+                    <div className="flex items-center justify-between">
                     <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em]">Agendamentos de Hoje</h2>
+                        <button 
+                            onClick={() => {
+                                const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
+                                    await addAppointment(appointmentData);
+                                };
+                                setNewAppointmentData(handleSaveAppointment, getTodayLocalDate());
+                                navigate('/new-appointment');
+                            }}
+                            className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title="Novo Agendamento"
+                        >
+                            <span className="material-symbols-outlined text-base">add</span>
+                            <span className="hidden sm:inline">Novo Agendamento</span>
+                        </button>
+                    </div>
                     <div className="flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15]">
                         <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
                             {sortedTodayAppointments.length > 0 ? (
@@ -642,7 +663,10 @@ export const DashboardPage: React.FC = () => {
                 
                 <div className="flex flex-col gap-4">
                     <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em]">Seu Desempenho Hoje</h2>
-                    <div className="rounded-xl border border-primary/30 bg-primary/10 dark:border-primary/50 dark:bg-[#392c28] p-4 sm:p-6">
+                    <div 
+                        className="rounded-xl border border-primary/30 bg-primary/10 dark:border-primary/50 dark:bg-[#392c28] p-4 sm:p-6 cursor-pointer hover:bg-primary/20 dark:hover:bg-primary/20 transition-colors"
+                        onClick={() => navigate('/reports?date=today')}
+                    >
                         <div className="flex items-start justify-between gap-4">
                             <div className="flex flex-col gap-1">
                                 <p className="text-xs sm:text-sm font-medium text-primary dark:text-primary">Total Recebido no Dia</p>
@@ -655,10 +679,15 @@ export const DashboardPage: React.FC = () => {
                        <StatCard 
                            icon="check_circle" 
                            value={todayStats.servicesCompleted.toString()} 
-                           label="Serviços Finalizados"
-                           onClick={() => navigate('/finalized-services?from=dashboard')}
+                           label="Atendimentos Finalizados"
+                           onClick={() => navigate('/register-service?from=dashboard')}
                        />
-                       <StatCard icon="receipt_long" value={`R$ ${todayStats.averageTicket.toFixed(2).replace('.', ',')}`} label="Ticket Médio" />
+                       <StatCard 
+                           icon="shopping_cart" 
+                           value={todayStats.salesCompleted.toString()} 
+                           label="Vendas Realizadas"
+                           onClick={() => navigate('/sales?date=today')}
+                       />
                     </div>
                 </div>
             </div>

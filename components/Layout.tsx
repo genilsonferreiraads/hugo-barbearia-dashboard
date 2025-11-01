@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts.tsx';
+import { usePageTransition } from './PageTransitionContext.tsx';
 
 const navItems = [
     { path: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
     { path: '/schedule', icon: 'calendar_today', label: 'Agenda' },
     { path: '/register-service', icon: 'content_cut', label: 'Atendimentos' },
-    { path: '/finalized-services', icon: 'check_circle', label: 'Finalizados' },
+    { path: '/sales', icon: 'shopping_cart', label: 'Vendas' },
     { path: '/reports', icon: 'bar_chart', label: 'Relatórios'},
     { path: '/clients', icon: 'group', label: 'Clientes' },
     { path: '/financial', icon: 'payments', label: 'Financeiro' },
@@ -21,6 +22,7 @@ const Icon = ({ name, filled = false }: { name: string; filled?: boolean }) => (
 export const Layout: React.FC = () => {
     const navigate = useNavigate();
     const { signOut, user } = useAuth();
+    const { transitionStage } = usePageTransition();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [avatarZoom, setAvatarZoom] = useState(false);
@@ -163,7 +165,7 @@ export const Layout: React.FC = () => {
                     </button>
                 </div>
             </aside>
-            <main className="flex-1 p-4 lg:p-6 xl:p-10 overflow-y-auto w-full lg:w-auto main-content pt-20 lg:pt-4">
+            <main className={`flex-1 p-4 lg:p-6 xl:p-10 overflow-y-auto w-full lg:w-auto main-content pt-20 lg:pt-4 page-transition-wrapper ${transitionStage}`} style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
                 <Outlet />
             </main>
         </div>

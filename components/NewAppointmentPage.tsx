@@ -65,6 +65,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
     const [errorMessage, setErrorMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [newAppointmentData, setNewAppointmentData] = useState<{ clientName: string; date: string; time: string } | null>(null);
+    const whatsappInputRef = React.useRef<HTMLInputElement>(null);
 
     // Wait for appointments to update and show the receipt modal
     useEffect(() => {
@@ -179,7 +180,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
         <div className="min-h-screen bg-gradient-to-br from-background-light to-gray-50 dark:from-background-dark dark:to-gray-900 flex flex-col">
             {/* Header with Back Button and Progress */}
             <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm">
-                <div className="max-w-2xl mx-auto px-3 sm:px-6 py-2 sm:py-3">
+                <div className="max-w-md mx-auto px-4 sm:px-6 py-3">
                     <div className="flex items-start gap-2 sm:gap-4 mb-3 sm:mb-4">
                         <button 
                             onClick={() => navigate(-1)}
@@ -208,11 +209,11 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 max-w-2xl w-full mx-auto px-4 sm:px-6 py-6">
+            <main className="flex-1 max-w-md w-full mx-auto px-4 sm:px-6 py-6">
                 <form onSubmit={handleSubmit}>
                     {/* Step 1: Client Information */}
                     {step === 1 && (
-                        <div className="space-y-5 animate-fade-in">
+                        <div className="space-y-4 animate-fade-in">
                             {errorMessage && (
                                 <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
                                     <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
@@ -220,7 +221,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                             )}
 
                             {/* Client Name */}
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
+                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
                                 <label className="block space-y-2">
                                     <p className="text-sm font-semibold text-gray-900 dark:text-white">Nome do Cliente</p>
                                     <input 
@@ -232,6 +233,14 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                         value={clientName}
                                         onChange={(e) => setClientName(e.target.value)}
                                         onBlur={() => setClientName(capitalizeName(clientName))}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                if (clientName.trim()) {
+                                                    whatsappInputRef.current?.focus();
+                                                }
+                                            }
+                                        }}
                                     />
                                 </label>
 
@@ -240,11 +249,20 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                         WhatsApp <span className="text-gray-500 text-xs">(Opcional)</span>
                                     </p>
                                     <input 
+                                        ref={whatsappInputRef}
                                         type="tel"
                                         className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
                                         placeholder="(87) 9 9155-6444"
                                         value={whatsapp}
                                         onChange={handleWhatsAppChange}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                if (clientName.trim()) {
+                                                    handleNextStep();
+                                                }
+                                            }
+                                        }}
                                     />
                                 </label>
                             </div>
@@ -253,7 +271,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
 
                     {/* Step 2: Date and Time */}
                     {step === 2 && (
-                        <div className="space-y-5 animate-fade-in">
+                        <div className="space-y-4 animate-fade-in">
                             {errorMessage && (
                                 <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
                                     <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
@@ -279,7 +297,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                             </div>
 
                             {/* Available Times */}
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
+                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
                                 <p className="text-sm font-semibold text-gray-900 dark:text-white">Horários Disponíveis</p>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                     {AVAILABLE_TIMES.map((availableTime) => {
@@ -322,7 +340,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                     )}
 
                     {/* Action Buttons */}
-                    <div className="mt-8 flex gap-3 sm:justify-end flex-wrap sm:flex-nowrap">
+                    <div className="mt-6 flex gap-3 sm:justify-end flex-wrap sm:flex-nowrap">
                         {step === 1 && (
                             <>
                                 <button 

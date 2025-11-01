@@ -301,3 +301,28 @@
 .min-h-appointment {
   min-height: 7rem;
 }
+
+/* Page Transition Animation - Fade in with subtle scale */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.page-transition-wrapper {
+  position: relative;
+  will-change: transform, opacity;
+}
+
+.page-transition-wrapper.entering {
+  animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.page-transition-wrapper.entered {
+  animation: none;
+}

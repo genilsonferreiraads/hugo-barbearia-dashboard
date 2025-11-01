@@ -170,8 +170,8 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
             });
             console.log('onFinalize completed, closing modal and navigating...');
             onClose();
-            console.log('Modal closed, navigating to /finalized-services');
-            navigate('/finalized-services', { state: { successMessage: 'Salvo com sucesso!' } });
+            console.log('Modal closed, navigating to /register-service');
+            navigate('/register-service', { state: { successMessage: 'Salvo com sucesso!' } });
             console.log('Navigate called');
         } catch (error: any) {
             console.error("Failed to finalize appointment:", error);

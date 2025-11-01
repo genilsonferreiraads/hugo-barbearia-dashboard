@@ -191,13 +191,15 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                 transactionData.date = appointment.date;
             }
             
+            if (!onFinalize || typeof onFinalize !== 'function') {
+                throw new Error('onFinalize function is not available or is not a function');
+            }
+            
             await onFinalize(transactionData);
             
             // Navigate back (when editing, go back to FinalizedServices; when creating, go back to appointments)
-            
-            // Pass success message if navigating to finalized-services
-            if (redirectTo === '/finalized-services') {
-                navigate(redirectTo, { state: { successMessage: 'Salvo com sucesso!' } });
+            if (redirectTo === '/finalized-services' || redirectTo === '/register-service') {
+                navigate('/register-service', { state: { successMessage: 'Salvo com sucesso!' } });
             } else {
                 navigate(redirectTo || -1);
             }

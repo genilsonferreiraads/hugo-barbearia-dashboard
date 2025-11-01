@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useCallback, useRef } from 'react';
-import { Service, Appointment, AppointmentStatus, Transaction } from './types.ts';
+import { Service, Product, Appointment, AppointmentStatus, Transaction } from './types.ts';
 import { supabase } from './services/supabaseClient.ts';
 import type { User, Session } from '@supabase/supabase-js';
 
@@ -173,6 +173,73 @@ export const ServicesProvider: React.FC<{children: React.ReactNode}> = ({ childr
     return <ServicesContext.Provider value={value}>{children}</ServicesContext.Provider>;
 }
 
+// --- PRODUCTS CONTEXT ---
+interface ProductsContextType {
+    products: Product[];
+    addProduct: (product: Omit<Product, 'id' | 'created_at'>) => Promise<void>;
+    updateProduct: (updatedProduct: Product) => Promise<void>;
+    deleteProduct: (productId: number) => Promise<void>;
+}
+const ProductsContext = createContext<ProductsContextType | undefined>(undefined);
+
+export const useProducts = () => {
+    const context = useContext(ProductsContext);
+    if(!context) throw new Error('useProducts must be used within a ProductsProvider');
+    return context;
+}
+
+export const ProductsProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
+    const [products, setProducts] = useState<Product[]>([]);
+
+    const fetchProducts = useCallback(async () => {
+        const { data, error } = await supabase.from('products').select('*').order('name');
+        if (error) console.error('Error fetching products:', error);
+        else setProducts(data || []);
+    }, []);
+
+    useEffect(() => {
+        fetchProducts();
+    }, [fetchProducts]);
+
+    const addProduct = useCallback(async (product: Omit<Product, 'id' | 'created_at'>) => {
+        const { data, error } = await supabase.from('products').insert([product]).select();
+        if (error) {
+            console.error('Error adding product:', error);
+            throw error;
+        }
+        if (data) {
+            setProducts(prev => [...prev, data[0]].sort((a, b) => a.name.localeCompare(b.name)));
+        }
+    }, []);
+
+    const updateProduct = useCallback(async (updatedProduct: Product) => {
+        const { id, ...productData } = updatedProduct;
+        const { data, error } = await supabase.from('products').update(productData).eq('id', id).select();
+        if (error) {
+            console.error('Error updating product:', error);
+            throw error;
+        }
+        if(data) {
+            setProducts(prev => prev.map(p => p.id === id ? data[0] : p));
+        }
+    }, []);
+
+    const deleteProduct = useCallback(async (productId: number) => {
+        const { error } = await supabase.from('products').delete().eq('id', productId);
+        if (error) {
+            console.error('Error deleting product:', error);
+            throw error;
+        }
+        else {
+            setProducts(prev => prev.filter(p => p.id !== productId));
+        }
+    }, []);
+
+    const value = useMemo(() => ({ products, addProduct, updateProduct, deleteProduct }), [products, addProduct, updateProduct, deleteProduct]);
+    
+    return <ProductsContext.Provider value={value}>{children}</ProductsContext.Provider>;
+}
+
 // --- TRANSACTIONS CONTEXT ---
 interface TransactionsContextType {
     transactions: Transaction[];
@@ -195,10 +262,11 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
         if (error) console.error('Error fetching transactions:', error);
         else {
-            const mappedData = data?.map(({ clientname, paymentmethod, ...rest }) => ({
+            const mappedData = data?.map(({ clientname, paymentmethod, type, ...rest }) => ({
                 ...rest,
                 clientName: clientname,
                 paymentMethod: paymentmethod,
+                type: type || 'service',
             })) || [];
             setTransactions(mappedData);
         }
@@ -225,8 +293,8 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
             throw error;
         }
         if(data) {
-            const { clientname, paymentmethod, ...rest } = data[0];
-            const mappedTransaction = { ...rest, clientName: clientname, paymentMethod: paymentmethod };
+            const { clientname, paymentmethod, type, ...rest } = data[0];
+            const mappedTransaction = { ...rest, clientName: clientname, paymentMethod: paymentmethod, type: type || 'service' };
             setTransactions(prev => [mappedTransaction, ...prev]);
         }
     }, []);
@@ -240,6 +308,7 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (updates.subtotal !== undefined) updateData.subtotal = updates.subtotal;
         if (updates.discount !== undefined) updateData.discount = updates.discount;
         if (updates.value !== undefined) updateData.value = updates.value;
+        if (updates.type !== undefined) updateData.type = updates.type;
 
         const { error } = await supabase.from('transactions').update(updateData).eq('id', id);
         if (error) {

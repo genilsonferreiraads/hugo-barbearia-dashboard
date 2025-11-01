@@ -3,7 +3,8 @@ import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Transaction } from '../types.ts';
 import { useTransactions, useEditTransaction } from '../contexts.tsx';
 
-const Icon = ({ name }: { name: string }) => <span className="material-symbols-outlined text-2xl">{name}</span>;
+const Icon = ({ name, className, style }: { name: string; className?: string; style?: React.CSSProperties }) => 
+    <span className={`material-symbols-outlined ${className || ''}`} style={style}>{name}</span>;
 
 // Helper function to get today's date in local timezone (YYYY-MM-DD format)
 const getTodayLocalDate = (): string => {
@@ -39,7 +40,7 @@ export const FinalizedServicesPage: React.FC = () => {
             setSuccessMessage(message);
             
             // Replace current history entry to clear the state (prevents showing message on refresh)
-            navigate('/finalized-services', { replace: true });
+            navigate('/register-service', { replace: true });
             
             const timer = setTimeout(() => {
                 setSuccessMessage(null);
@@ -113,15 +114,23 @@ export const FinalizedServicesPage: React.FC = () => {
         }
     };
 
-    // Categorize transactions
+    // Categorize transactions - excluir produtos, apenas serviços
     const categorizedTransactions = useMemo(() => {
-        return transactions.map(transaction => {
-            const isScheduled = transaction.clientName.includes('|');
-            return {
-                ...transaction,
-                type: isScheduled ? 'agendado' : 'avulso'
-            };
-        });
+        return transactions
+            .filter(transaction => {
+                // Excluir vendas de produtos - verificar tanto pelo type quanto pelo clientName
+                if (transaction.type === 'product') return false;
+                if (transaction.clientName === 'Venda de Produto') return false;
+                return true;
+            })
+            .map(transaction => {
+                // Categorize as scheduled or walk-in service
+                const isScheduled = transaction.clientName.includes('|');
+                return {
+                    ...transaction,
+                    type: isScheduled ? 'agendado' as const : 'avulso' as const
+                };
+            });
     }, [transactions]);
 
     // Filter by date range and type
@@ -203,11 +212,19 @@ export const FinalizedServicesPage: React.FC = () => {
                 </div>
             )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 lg:mb-8 mt-4 sm:mt-6">
+            {/* Header with New Service Button */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 lg:mb-8 mt-4 sm:mt-6">
                 <div className="flex flex-col gap-1">
-                    <p className="text-zinc-900 dark:text-white text-2xl sm:text-3xl lg:text-4xl font-black tracking-[-0.033em]">Serviços Finalizados</p>
+                    <p className="text-zinc-900 dark:text-white text-2xl sm:text-3xl lg:text-4xl font-black tracking-[-0.033em]">Atendimentos</p>
                     <p className="text-zinc-600 dark:text-zinc-400 text-sm sm:text-base font-normal">{totals.count} serviço{totals.count !== 1 ? 's' : ''} finalizado{totals.count !== 1 ? 's' : ''}</p>
                 </div>
+                <button
+                    onClick={() => navigate('/register-service/new')}
+                    className="flex items-center justify-center gap-2 bg-primary text-white font-semibold py-2.5 px-5 rounded-lg shadow-md hover:shadow-lg hover:bg-primary/90 transition-all active:scale-95 w-full sm:w-auto"
+                >
+                    <Icon name="add" />
+                    <span>Novo Atendimento</span>
+                </button>
             </div>
 
             {/* Category Filter Buttons */}
@@ -319,26 +336,27 @@ export const FinalizedServicesPage: React.FC = () => {
                                 <div className="flex items-start justify-between gap-3">
                                     {/* Left side - Name, Date, Category */}
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-gray-900 dark:text-white break-words mb-0.5">
-                                            {getClientName(transaction.clientName)}
+                                        <p className="text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1 flex items-center gap-1.5">
+                                            {transaction.type === 'agendado' ? (
+                                                <>
+                                                    <Icon name="event_available" className="text-sm flex-shrink-0" style={{ color: '#ff0000' }} />
+                                                    <span className="truncate">{getClientName(transaction.clientName)}</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Icon name="order_approve" className="text-sm flex-shrink-0" style={{ color: '#ff0000' }} />
+                                                    <span className="truncate">{getClientName(transaction.clientName)}</span>
+                                                </>
+                                            )}
                                         </p>
                                         <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 mb-0.5">
                                             <span className="material-symbols-outlined text-sm">calendar_today</span>
                                             <span>{formatDate(transaction.date)}</span>
                                         </div>
-                                        <span
-                                            className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                                                transaction.type === 'agendado'
-                                                    ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
-                                                    : 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
-                                            }`}
-                                        >
-                                            {transaction.type === 'agendado' ? '📅 Agendado' : '⚡ Avulso'}
-                                        </span>
                                     </div>
 
                                     {/* Right side - Value and buttons */}
-                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                                         <div className="text-right">
                                             <p className="text-base font-bold text-primary">
                                                 {formatCurrency(transaction.value)}
@@ -380,18 +398,19 @@ export const FinalizedServicesPage: React.FC = () => {
                                 {/* Left side - Main info */}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-base font-bold text-gray-900 dark:text-white truncate">
-                                            {getClientName(transaction.clientName)}
+                                        <p className="text-base font-bold text-gray-900 dark:text-white truncate flex items-center gap-1.5">
+                                            {transaction.type === 'agendado' ? (
+                                                <>
+                                                    <Icon name="event_available" className="text-sm" style={{ color: '#ff0000' }} />
+                                                    <span>{getClientName(transaction.clientName)}</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Icon name="order_approve" className="text-sm" style={{ color: '#ff0000' }} />
+                                                    <span>{getClientName(transaction.clientName)}</span>
+                                                </>
+                                            )}
                                         </p>
-                                        <span
-                                            className={`px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${
-                                                transaction.type === 'agendado'
-                                                    ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
-                                                    : 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
-                                            }`}
-                                        >
-                                            {transaction.type === 'agendado' ? '📅' : '⚡'}
-                                        </span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                                         <span className="flex items-center gap-1">

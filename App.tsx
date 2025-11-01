@@ -4,6 +4,7 @@ import {
   ThemeProvider, 
   AuthProvider,
   ServicesProvider, 
+  ProductsProvider,
   AppointmentsProvider, 
   TransactionsProvider,
   FinalizeAppointmentProvider,
@@ -18,12 +19,15 @@ import {
   EditTransactionProvider
 } from './contexts.tsx';
 import { Layout } from './components/Layout.tsx';
+import { PageTransitionWrapper } from './components/PageTransitionWrapper.tsx';
 import { LoginPage } from './components/Login.tsx';
 import { DashboardPage } from './components/Dashboard.tsx';
 import { SchedulePage } from './components/Schedule.tsx';
 import { ServiceRegistryPage } from './components/ServiceRegistry.tsx';
 import { ReportsPage } from './components/Reports.tsx';
-import { SettingsPage } from './components/Settings.tsx';
+import { SettingsMainPage } from './components/SettingsMain.tsx';
+import { SettingsServicesPage } from './components/SettingsServices.tsx';
+import { SettingsProductsPage } from './components/SettingsProducts.tsx';
 import { ProtectedRoute } from './components/ProtectedRoute.tsx';
 import { FinalizeAppointmentPage } from './components/FinalizeAppointmentPage.tsx';
 import { NewAppointmentPage } from './components/NewAppointmentPage.tsx';
@@ -32,6 +36,8 @@ import { AppointmentDetailPage } from './components/AppointmentDetailPage.tsx';
 import { FinalizedServicesPage } from './components/FinalizedServices.tsx';
 import { TransactionDetailPage } from './components/TransactionDetailPage.tsx';
 import { AppointmentReceiptPage } from './components/AppointmentReceiptPage.tsx';
+import { SalesPage } from './components/Sales.tsx';
+import { SalesListPage } from './components/SalesList.tsx';
 import { Appointment } from './types.ts';
 
 // Wrapper for new appointment page
@@ -126,7 +132,7 @@ const EditTransactionWrapper: React.FC = () => {
       onFinalize={onSave}
       isEditing={true}
       initialData={transaction}
-      redirectTo="/finalized-services"
+      redirectTo="/register-service"
     />
   );
 };
@@ -137,6 +143,7 @@ const App: React.FC = () => {
     <ThemeProvider>
       <AuthProvider>
         <ServicesProvider>
+          <ProductsProvider>
           <AppointmentsProvider>
             <TransactionsProvider>
               <FinalizeAppointmentProvider>
@@ -149,15 +156,25 @@ const App: React.FC = () => {
                             <Route path="/login" element={<LoginPage />} />
                             <Route path="/" element={
                               <ProtectedRoute>
-                                <Layout />
+                                <PageTransitionWrapper />
                               </ProtectedRoute>
                             }>
                               <Route index element={<Navigate to="/dashboard" replace />} />
                               <Route path="dashboard" element={<DashboardPage />} />
                               <Route path="schedule" element={<SchedulePage />} />
-                              <Route path="register-service" element={<ServiceRegistryPage />} />
+                              <Route path="register-service" element={<FinalizedServicesPage />} />
+                              <Route path="register-service/new" element={<ServiceRegistryPage />} />
                               <Route path="reports" element={<ReportsPage />} />
-                              <Route path="settings" element={<SettingsPage />} />
+                              <Route path="settings" element={<SettingsMainPage />} />
+                              <Route path="settings/services" element={<SettingsServicesPage />} />
+                              <Route path="settings/products" element={<SettingsProductsPage />} />
+                              <Route path="sales" element={<SalesListPage />} />
+                              <Route path="sales/new" element={<SalesPage />} />
+                              <Route path="sales/edit" element={
+                                <ProtectedRoute>
+                                  <SalesPage />
+                                </ProtectedRoute>
+                              } />
                               <Route path="finalized-services" element={<FinalizedServicesPage />} />
                               <Route path="appointment-receipt" element={<AppointmentReceiptPage />} />
                               <Route path="finalize-appointment" element={
@@ -205,6 +222,7 @@ const App: React.FC = () => {
               </FinalizeAppointmentProvider>
             </TransactionsProvider>
           </AppointmentsProvider>
+          </ProductsProvider>
         </ServicesProvider>
       </AuthProvider>
     </ThemeProvider>
