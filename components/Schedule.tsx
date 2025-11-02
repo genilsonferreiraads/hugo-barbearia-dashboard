@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppointments, useTransactions, useFinalizeAppointment, useNewAppointment, useAppointmentDetail } from '../contexts.tsx';
 import { Appointment, AppointmentStatus, Transaction } from '../types.ts';
@@ -29,11 +29,22 @@ export const SchedulePage: React.FC = () => {
     const navigate = useNavigate();
     const [selectedDate, setSelectedDate] = useState<string>(getTodayLocalDate());
     const [showCalendar, setShowCalendar] = useState(false);
-    const { appointments } = useAppointments();
+    const { appointments, fetchAppointments, addAppointment } = useAppointments();
     const { addTransaction } = useTransactions();
     const { setFinalizeData } = useFinalizeAppointment();
     const { setNewAppointmentData } = useNewAppointment();
     const { setAppointmentDetail } = useAppointmentDetail();
+    
+    // Recarregar agendamentos quando cliente for atualizado
+    useEffect(() => {
+        const handleClientUpdated = () => {
+            fetchAppointments();
+        };
+        window.addEventListener('clientUpdated', handleClientUpdated);
+        return () => {
+            window.removeEventListener('clientUpdated', handleClientUpdated);
+        };
+    }, [fetchAppointments]);
 
     const selectedDateObj = new Date(`${selectedDate}T00:00:00`);
     
@@ -90,7 +101,10 @@ export const SchedulePage: React.FC = () => {
     };
 
     const handleNewAppointment = () => {
-        setNewAppointmentData(async () => {}, selectedDate);
+        const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
+            await addAppointment(appointmentData);
+        };
+        setNewAppointmentData(handleSaveAppointment, selectedDate);
         navigate('/new-appointment');
     };
 

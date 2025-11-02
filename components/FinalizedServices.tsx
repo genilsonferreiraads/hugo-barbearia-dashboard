@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Transaction } from '../types.ts';
 import { useTransactions, useEditTransaction } from '../contexts.tsx';
@@ -16,11 +17,22 @@ const getTodayLocalDate = (): string => {
 };
 
 export const FinalizedServicesPage: React.FC = () => {
-    const { transactions, updateTransaction, deleteTransaction } = useTransactions();
+    const { transactions, fetchTransactions, updateTransaction, deleteTransaction } = useTransactions();
     const { setEditTransactionData, clearEditTransactionData } = useEditTransaction();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const location = useLocation();
+    
+    // Recarregar transações quando cliente for atualizado
+    useEffect(() => {
+        const handleClientUpdated = () => {
+            fetchTransactions();
+        };
+        window.addEventListener('clientUpdated', handleClientUpdated);
+        return () => {
+            window.removeEventListener('clientUpdated', handleClientUpdated);
+        };
+    }, [fetchTransactions]);
     
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [filterType, setFilterType] = useState<'all' | 'agendado' | 'avulso'>('all');
@@ -32,6 +44,7 @@ export const FinalizedServicesPage: React.FC = () => {
     // Delete confirmation state
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [deletingTransactionId, setDeletingTransactionId] = useState<number | null>(null);
 
     // Show success message from location state and auto-dismiss after 3 seconds
     useEffect(() => {
@@ -68,7 +81,10 @@ export const FinalizedServicesPage: React.FC = () => {
         }, 0);
     };
 
-    const handleDeleteClick = (transaction: any) => {
+    const handleDeleteClick = (transaction: any, e?: React.MouseEvent) => {
+        if (e) {
+            e.stopPropagation();
+        }
         setSelectedTransaction(transaction);
         setIsDeleting(true);
     };
@@ -76,13 +92,33 @@ export const FinalizedServicesPage: React.FC = () => {
     const handleConfirmDelete = async () => {
         if (!selectedTransaction) return;
         try {
-            await deleteTransaction(selectedTransaction.id);
+            // Iniciar animação de remoção
+            setDeletingTransactionId(selectedTransaction.id);
             setIsDeleting(false);
-            setSelectedTransaction(null);
+            
+            // Aguardar animação completar antes de deletar
+            setTimeout(async () => {
+                try {
+                    await deleteTransaction(selectedTransaction.id);
+                    setDeletingTransactionId(null);
+                    setSelectedTransaction(null);
+                } catch (error) {
+                    console.error('Erro ao deletar:', error);
+                    alert('Erro ao deletar o serviço');
+                    setDeletingTransactionId(null);
+                }
+            }, 300); // Duração da animação em ms
         } catch (error) {
             console.error('Erro ao deletar:', error);
             alert('Erro ao deletar o serviço');
+            setDeletingTransactionId(null);
+            setSelectedTransaction(null);
         }
+    };
+
+    const handleCancelDelete = () => {
+        setIsDeleting(false);
+        setSelectedTransaction(null);
     };
 
     // Get date ranges
@@ -325,11 +361,21 @@ export const FinalizedServicesPage: React.FC = () => {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-3 sm:gap-4">
-                    {sortedTransactions.map((transaction) => (
+                    {sortedTransactions.map((transaction) => {
+                        const isDeletingItem = deletingTransactionId === transaction.id;
+                        return (
                         <div
                             key={transaction.id}
-                            onClick={() => navigate(`/transaction/${transaction.id}`)}
-                            className="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 p-3 sm:p-4 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                            onClick={() => !isDeletingItem && navigate(`/transaction/${transaction.id}`)}
+                            className={`bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 p-3 sm:p-4 shadow-sm hover:shadow-md cursor-pointer active:scale-[0.98] ${
+                                isDeletingItem 
+                                    ? 'opacity-0 transform scale-95 -translate-y-2 pointer-events-none' 
+                                    : 'opacity-100 transform scale-100 translate-y-0 hover:shadow-md'
+                            }`}
+                            style={{ 
+                                transition: 'opacity 300ms ease-out, transform 300ms ease-out',
+                                pointerEvents: isDeletingItem ? 'none' : 'auto'
+                            }}
                         >
                             {/* Mobile Layout */}
                             <div className="block sm:hidden">
@@ -450,7 +496,7 @@ export const FinalizedServicesPage: React.FC = () => {
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            handleDeleteClick(transaction);
+                                            handleDeleteClick(transaction, e);
                                         }}
                                             className="flex items-center justify-center size-9 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                                         title="Deletar"
@@ -461,41 +507,71 @@ export const FinalizedServicesPage: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
             {/* Delete Confirmation Modal */}
-            {isDeleting && selectedTransaction && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-md w-full">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Confirmar Exclusão</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                            Tem certeza que deseja deletar este serviço finalizado? Esta ação não pode ser desfeita.
-                        </p>
-                        <div className="space-y-2 mb-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                            <p><strong>Cliente:</strong> {getClientName(selectedTransaction.clientName)}</p>
-                            <p><strong>Valor:</strong> {formatCurrency(selectedTransaction.value)}</p>
+            {isDeleting && selectedTransaction && typeof document !== 'undefined' && createPortal(
+                <div 
+                    className="fixed inset-0 bg-black/60 dark:bg-black/70 z-[99999] flex items-center justify-center p-4 backdrop-blur-sm"
+                    style={{ position: 'fixed', zIndex: 99999 }}
+                    onClick={handleCancelDelete}
+                >
+                    <div 
+                        className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-2xl max-w-md w-full p-5 sm:p-6 transform transition-all"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-start gap-4 mb-5">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                                <Icon name="warning" className="text-red-600 dark:text-red-400 text-xl" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                                    Excluir Atendimento
+                                </h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Tem certeza que deseja excluir este atendimento? Esta ação não pode ser desfeita.
+                                </p>
+                            </div>
                         </div>
-                        <div className="flex gap-2">
+
+                        <div className="space-y-2 mb-5 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <p className="text-sm">
+                                <span className="font-semibold text-gray-900 dark:text-white">Cliente:</span>{' '}
+                                <span className="text-gray-700 dark:text-gray-300">{getClientName(selectedTransaction.clientName)}</span>
+                            </p>
+                            <p className="text-sm">
+                                <span className="font-semibold text-gray-900 dark:text-white">Valor:</span>{' '}
+                                <span className="text-gray-700 dark:text-gray-300">{formatCurrency(selectedTransaction.value)}</span>
+                            </p>
+                            {selectedTransaction.service && (
+                                <p className="text-sm">
+                                    <span className="font-semibold text-gray-900 dark:text-white">Serviço:</span>{' '}
+                                    <span className="text-gray-700 dark:text-gray-300">{selectedTransaction.service}</span>
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-3 justify-end">
                             <button
-                                onClick={() => {
-                                    setIsDeleting(false);
-                                    setSelectedTransaction(null);
-                                }}
-                                className="flex-1 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+                                onClick={handleCancelDelete}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={handleConfirmDelete}
-                                className="flex-1 px-4 py-2 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors"
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
                             >
-                                Deletar
+                                <Icon name="delete" className="text-base" />
+                                Excluir
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

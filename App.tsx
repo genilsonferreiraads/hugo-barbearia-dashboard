@@ -16,7 +16,10 @@ import {
   useEditAppointment,
   useAppointmentDetail,
   useEditTransaction,
-  EditTransactionProvider
+  EditTransactionProvider,
+  SystemSettingsProvider,
+  CreditSalesProvider,
+  ClientsProvider
 } from './contexts.tsx';
 import { Layout } from './components/Layout.tsx';
 import { PageTransitionWrapper } from './components/PageTransitionWrapper.tsx';
@@ -36,8 +39,16 @@ import { AppointmentDetailPage } from './components/AppointmentDetailPage.tsx';
 import { FinalizedServicesPage } from './components/FinalizedServices.tsx';
 import { TransactionDetailPage } from './components/TransactionDetailPage.tsx';
 import { AppointmentReceiptPage } from './components/AppointmentReceiptPage.tsx';
+import { PaymentReceiptPage } from './components/PaymentReceiptPage.tsx';
+import { RegisterPaymentPage } from './components/RegisterPaymentPage.tsx';
 import { SalesPage } from './components/Sales.tsx';
 import { SalesListPage } from './components/SalesList.tsx';
+import { CreditSalesListPage } from './components/CreditSalesList.tsx';
+import { CreditSaleDetailPage } from './components/CreditSaleDetailPage.tsx';
+import { ClientsPage } from './components/ClientsPage.tsx';
+import { NewClientPage } from './components/NewClientPage.tsx';
+import { EditClientPage } from './components/EditClientPage.tsx';
+import { ClientDetailPage } from './components/ClientDetailPage.tsx';
 import { Appointment } from './types.ts';
 
 // Wrapper for new appointment page
@@ -142,15 +153,18 @@ const App: React.FC = () => {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <ServicesProvider>
-          <ProductsProvider>
-          <AppointmentsProvider>
-            <TransactionsProvider>
-              <FinalizeAppointmentProvider>
-                <NewAppointmentProvider>
-                  <EditAppointmentProvider>
-                    <EditTransactionProvider>
-                      <AppointmentDetailProvider>
+        <SystemSettingsProvider>
+          <ServicesProvider>
+            <ProductsProvider>
+              <AppointmentsProvider>
+              <TransactionsProvider>
+                <CreditSalesProvider>
+                  <ClientsProvider>
+                    <FinalizeAppointmentProvider>
+                      <NewAppointmentProvider>
+                        <EditAppointmentProvider>
+                          <EditTransactionProvider>
+                            <AppointmentDetailProvider>
                         <HashRouter>
                           <Routes>
                             <Route path="/login" element={<LoginPage />} />
@@ -175,8 +189,16 @@ const App: React.FC = () => {
                                   <SalesPage />
                                 </ProtectedRoute>
                               } />
+                              <Route path="credit-sales" element={<CreditSalesListPage />} />
+                              <Route path="credit-sales/:id" element={
+                                <ProtectedRoute>
+                                  <CreditSaleDetailPage />
+                                </ProtectedRoute>
+                              } />
                               <Route path="finalized-services" element={<FinalizedServicesPage />} />
                               <Route path="appointment-receipt" element={<AppointmentReceiptPage />} />
+                              <Route path="payment-receipt" element={<PaymentReceiptPage />} />
+                              <Route path="register-payment" element={<RegisterPaymentPage />} />
                               <Route path="finalize-appointment" element={
                                 <ProtectedRoute>
                                   <FinalizeAppointmentWrapper />
@@ -207,23 +229,29 @@ const App: React.FC = () => {
                                   <TransactionDetailPage />
                                 </ProtectedRoute>
                               } />
-                              {/* Placeholder routes for other nav items */}
-                              <Route path="clients" element={<PlaceholderPage title="Clientes" />} />
+                              {/* Clientes */}
+                              <Route path="clients" element={<ClientsPage />} />
+                              <Route path="clients/new" element={<NewClientPage />} />
+                              <Route path="clients/edit/:id" element={<EditClientPage />} />
+                              <Route path="clients/:id" element={<ClientDetailPage />} />
                               <Route path="financial" element={<PlaceholderPage title="Financeiro" />} />
                               <Route path="finalized-services" element={<FinalizedServicesPage />} />
                             </Route>
                             <Route path="*" element={<Navigate to="/" />} />
                           </Routes>
                         </HashRouter>
-                      </AppointmentDetailProvider>
-                    </EditTransactionProvider>
-                  </EditAppointmentProvider>
-                </NewAppointmentProvider>
-              </FinalizeAppointmentProvider>
-            </TransactionsProvider>
-          </AppointmentsProvider>
-          </ProductsProvider>
-        </ServicesProvider>
+                            </AppointmentDetailProvider>
+                          </EditTransactionProvider>
+                        </EditAppointmentProvider>
+                      </NewAppointmentProvider>
+                    </FinalizeAppointmentProvider>
+                  </ClientsProvider>
+                  </CreditSalesProvider>
+                </TransactionsProvider>
+              </AppointmentsProvider>
+            </ProductsProvider>
+          </ServicesProvider>
+        </SystemSettingsProvider>
       </AuthProvider>
     </ThemeProvider>
   );

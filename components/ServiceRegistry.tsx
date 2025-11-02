@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useServices, useTransactions } from '../contexts.tsx';
-import { Service, PaymentMethod } from '../types.ts';
+import { useServices, useTransactions, useClients } from '../contexts.tsx';
+import { Service, PaymentMethod, Client } from '../types.ts';
 import { Toast, type ToastType } from './Toast.tsx';
+import { ClientSearchField } from './ClientSearchField.tsx';
 
 const paymentMethodOptions = Object.values(PaymentMethod);
 
@@ -56,9 +57,11 @@ const getTodayLocalDate = (): string => {
 export const ServiceRegistryPage: React.FC = () => {
   const { services } = useServices();
   const { addTransaction } = useTransactions();
+  const { clients, addClient } = useClients();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [clientName, setClientName] = useState('');
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: '' as PaymentMethod, amount: '0,00' }]);
   const [discount, setDiscount] = useState('');
@@ -66,6 +69,7 @@ export const ServiceRegistryPage: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [showAllServices, setShowAllServices] = useState(false);
+  const [serviceSearchTerm, setServiceSearchTerm] = useState('');
 
   const subtotal = useMemo(() => {
     return selectedServices.reduce((acc, service) => acc + service.price, 0);
@@ -81,7 +85,34 @@ export const ServiceRegistryPage: React.FC = () => {
     return total < 0 ? 0 : total;
   }, [subtotal, discountValue]);
 
-  const displayedServices = showAllServices ? services : services.slice(0, 3);
+  // Filtrar serviços baseado na busca
+  const filteredServices = useMemo(() => {
+    if (!serviceSearchTerm.trim()) {
+      return services;
+    }
+    const searchLower = serviceSearchTerm.toLowerCase().trim();
+    return services.filter(service => 
+      service.name.toLowerCase().includes(searchLower)
+    );
+  }, [services, serviceSearchTerm]);
+
+  // Ordenar serviços: selecionados primeiro
+  const sortedServices = useMemo(() => {
+    const selected = filteredServices.filter(service => 
+      selectedServices.some(s => s.id === service.id)
+    );
+    const notSelected = filteredServices.filter(service => 
+      !selectedServices.some(s => s.id === service.id)
+    );
+    return [...selected, ...notSelected];
+  }, [filteredServices, selectedServices]);
+
+  const displayedServices = useMemo(() => {
+    if (showAllServices) {
+      return sortedServices;
+    }
+    return sortedServices.slice(0, 4);
+  }, [sortedServices, showAllServices]);
 
   useEffect(() => {
     if (payments.length === 1) {
@@ -192,14 +223,22 @@ export const ServiceRegistryPage: React.FC = () => {
 
     try {
         setIsSubmitting(true);
+        
+        // Construir clientName com WhatsApp se houver
+        let finalClientNameWithWhatsapp = clientName.trim();
+        if (selectedClient && selectedClient.whatsapp) {
+            finalClientNameWithWhatsapp = `${clientName.trim()}|${selectedClient.whatsapp}`;
+        }
+        
         await addTransaction({
             date: getTodayLocalDate(),
-            clientName,
+            clientName: finalClientNameWithWhatsapp,
             service: selectedServices.map(s => s.name).join(', '),
             paymentMethod: payments.map(p => p.method).join(', '),
             subtotal,
             discount: discountValue,
             value: totalValue,
+            clientId: selectedClient?.id, // Incluir clientId se cliente foi selecionado da base
         });
 
         handleClear();
@@ -225,11 +264,20 @@ export const ServiceRegistryPage: React.FC = () => {
                 <div className="max-w-md mx-auto">
                 <div className="flex items-center justify-between mb-4">
                     <button 
-                            onClick={() => navigate(-1)}
-                            className="flex items-center justify-center size-10 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
-                            title="Voltar"
+                            onClick={() => {
+                                if (currentStep === 2) {
+                                    // Se estiver no passo 2, voltar para o passo 1
+                                    handlePrevStep();
+                                } else {
+                                    // Se estiver no passo 1, sair da página
+                                    navigate(-1);
+                                }
+                            }}
+                            className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex-shrink-0"
+                            title={currentStep === 2 ? "Voltar para passo 1" : "Voltar"}
                     >
                             <Icon name="arrow_back" className="text-xl" />
+                            <span className="font-medium text-sm hidden sm:inline">Voltar</span>
                     </button>
                     
                         <div className="text-center flex-1">
@@ -237,7 +285,7 @@ export const ServiceRegistryPage: React.FC = () => {
                         <p className="text-xs text-gray-500 dark:text-gray-400">Passo {currentStep} de 2</p>
                     </div>
                     
-                        <div className="w-10" />
+                        <div className="w-12 sm:w-20" />
                 </div>
 
                 {/* Progress Bar */}
@@ -263,22 +311,24 @@ export const ServiceRegistryPage: React.FC = () => {
                             <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
                             <label className="block space-y-2">
                                 <p className="text-sm font-semibold text-gray-900 dark:text-white">Nome do Cliente</p>
-                                <input 
-                                    type="text"
-                                    required
-                                    autoFocus
-                                    className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
-                                    placeholder="Digite o nome do cliente"
-                                    value={clientName}
-                                    onChange={(e) => setClientName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            if (clientName.trim() && selectedServices.length > 0) {
-                                                handleNextStep();
-                                            }
+                                <ClientSearchField
+                                    onSelectClient={(client) => {
+                                        setSelectedClient(client);
+                                        if (client) {
+                                            setClientName(client.fullName);
                                         }
                                     }}
+                                    onValueChange={(name) => {
+                                        setClientName(name);
+                                        if (!name.trim()) {
+                                            setSelectedClient(null);
+                                        }
+                                    }}
+                                    value={clientName}
+                                    placeholder="Digite o nome do cliente"
+                                    className="w-full"
+                                    // O modal de salvar cliente será exibido automaticamente pelo ClientSearchField
+                                    // Não precisa de callback aqui, o modal cuida de tudo
                                 />
                             </label>
                             </div>
@@ -286,71 +336,114 @@ export const ServiceRegistryPage: React.FC = () => {
 
                         {/* Services */}
                         <div className="max-w-md mx-auto">
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-800 space-y-2">
-                            <div className="flex items-baseline justify-between mb-1.5">
+                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
+                            <div className="flex items-baseline justify-between mb-2">
                                 <div>
                                     <h3 className="text-sm font-bold text-gray-900 dark:text-white">Serviços</h3>
-                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                         {selectedServices.length} serviço{selectedServices.length !== 1 ? 's' : ''} selecionado{selectedServices.length !== 1 ? 's' : ''}
                                     </p>
                                 </div>
                                 <p className="text-xl font-bold text-primary">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
                             </div>
 
-                            <div className="flex flex-wrap gap-1.5">
-                                {displayedServices.map(service => {
-                                    const isSelected = selectedServices.some(s => s.id === service.id);
-                                    return (
-                                        <button 
-                                            key={service.id}
+                            {/* Barra de busca de serviços */}
+                            <div className="mb-3">
+                                <div className="relative">
+                                    <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 text-base" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar serviço..."
+                                        value={serviceSearchTerm}
+                                        onChange={(e) => {
+                                            setServiceSearchTerm(e.target.value);
+                                            setShowAllServices(false);
+                                        }}
+                                        className="w-full h-10 pl-10 pr-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all"
+                                    />
+                                    {serviceSearchTerm && (
+                                        <button
                                             type="button"
-                                            onClick={() => handleServiceToggle(service)}
-                                            className={`p-1.5 rounded-lg border-2 transition-all ${
-                                                isSelected
-                                                    ? 'bg-primary/10 border-primary'
-                                                    : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:bg-gray-100 dark:hover:bg-gray-800'
-                                            }`}
+                                            onClick={() => setServiceSearchTerm('')}
+                                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                                         >
-                                            <div className="flex items-center gap-1.5">
-                                                <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
-                                                    isSelected
-                                                        ? 'bg-primary border-primary'
-                                                        : 'border-gray-300 dark:border-gray-600'
-                                                }`}>
-                                                    {isSelected && <Icon name="check" className="text-white text-[10px]" />}
-                                                </div>
-                                                <div className="text-left min-w-0">
-                                                    <p className="font-semibold text-gray-900 dark:text-white text-[11px] leading-tight truncate">{service.name}</p>
-                                                    <p className="text-[10px] text-gray-600 dark:text-gray-400">R$ {service.price.toFixed(2).replace('.', ',')}</p>
-                                                </div>
-                                            </div>
+                                            <Icon name="close" className="text-base" />
                                         </button>
-                                    );
-                                })}
+                                    )}
+                                </div>
                             </div>
 
-                            {services.length > 3 && (
-                                <div className="mt-2 text-center">
-                                    {!showAllServices && (
-                                        <button 
-                                            type="button"
-                                            onClick={() => setShowAllServices(true)}
-                                            className="inline-flex items-center gap-1 text-primary hover:text-primary/80 font-semibold transition-colors text-xs"
-                                        >
-                                            <Icon name="expand_more" className="text-base" />
-                                            <span>Exibir todos ({services.length})</span>
-                                        </button>
+                            {displayedServices.length > 0 ? (
+                                <>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {displayedServices.map(service => {
+                                            const isSelected = selectedServices.some(s => s.id === service.id);
+                                            return (
+                                                <button 
+                                                    key={service.id}
+                                                    type="button"
+                                                    onClick={() => handleServiceToggle(service)}
+                                                    className={`p-3 rounded-lg border transition-all text-left group ${
+                                                        isSelected
+                                                            ? 'bg-primary/5 border-primary/30 hover:border-primary/50'
+                                                            : 'bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-800/70'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className={`font-medium text-sm truncate ${
+                                                                isSelected
+                                                                    ? 'text-primary'
+                                                                    : 'text-gray-900 dark:text-white'
+                                                            }`}>
+                                                                {service.name}
+                                                            </p>
+                                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                                                R$ {service.price.toFixed(2).replace('.', ',')}
+                                                            </p>
+                                                        </div>
+                                                        <div className={`w-5 h-5 rounded flex items-center justify-center transition-all flex-shrink-0 ${
+                                                            isSelected
+                                                                ? 'bg-primary'
+                                                                : 'border-2 border-gray-300 dark:border-gray-600 group-hover:border-primary/50'
+                                                        }`}>
+                                                            {isSelected && <Icon name="check" className="text-white text-xs" />}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {sortedServices.length > 4 && (
+                                        <div className="mt-3 text-center">
+                                            {!showAllServices && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowAllServices(true)}
+                                                    className="inline-flex items-center gap-1 text-primary hover:text-primary/80 font-medium transition-colors text-sm"
+                                                >
+                                                    <Icon name="expand_more" className="text-base" />
+                                                    <span>Exibir mais ({sortedServices.length - 4} restantes)</span>
+                                                </button>
+                                            )}
+                                            {showAllServices && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowAllServices(false)}
+                                                    className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 font-medium transition-colors text-sm"
+                                                >
+                                                    <Icon name="expand_less" className="text-base" />
+                                                    <span>Mostrar menos</span>
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
-                                    {showAllServices && (
-                                        <button 
-                                            type="button"
-                                            onClick={() => setShowAllServices(false)}
-                                            className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 font-semibold transition-colors text-xs"
-                                        >
-                                            <Icon name="expand_less" className="text-base" />
-                                            <span>Mostrar menos</span>
-                                        </button>
-                                    )}
+                                </>
+                            ) : (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <Icon name="search_off" className="text-4xl mb-2 opacity-50" />
+                                    <p className="text-sm">Nenhum serviço encontrado</p>
                                 </div>
                             )}
                             </div>

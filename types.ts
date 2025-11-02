@@ -26,6 +26,7 @@ export interface Appointment {
   service: string;
   status: AppointmentStatus;
   date: string; // YYYY-MM-DD
+  clientId?: number; // ID do cliente na tabela clients (null se não foi salvo na base)
   created_at?: string;
 }
 
@@ -34,6 +35,7 @@ export enum PaymentMethod {
   CreditCard = "Crédito",
   DebitCard = "Débito",
   Cash = "Dinheiro",
+  Credit = "Fiado", // Venda no fiado
 }
 
 export interface Transaction {
@@ -46,6 +48,7 @@ export interface Transaction {
   subtotal: number;
   discount: number;
   type?: 'service' | 'product'; // Tipo da transação: serviço ou produto
+  clientId?: number; // ID do cliente na tabela clients (null se não foi salvo na base)
   created_at?: string;
 }
 
@@ -58,4 +61,61 @@ export interface DailyStats {
 export interface WeeklyRevenue {
     day: string;
     revenue: number;
+}
+
+// --- FIADO / CREDIT SALES ---
+export enum InstallmentStatus {
+  Pending = "Pendente",
+  Paid = "Paga",
+  Overdue = "Atrasada",
+}
+
+export enum CreditSaleStatus {
+  Active = "Em Aberto",
+  Paid = "Quitado",
+  Overdue = "Atrasado",
+}
+
+export interface Installment {
+  id: number;
+  creditSaleId: number;
+  installmentNumber: number; // Número da parcela (1, 2, 3...)
+  amount: number; // Valor da parcela
+  dueDate: string; // YYYY-MM-DD - Data de vencimento
+  status: InstallmentStatus;
+  paidDate?: string; // YYYY-MM-DD - Data de pagamento (se paga)
+  paymentMethod?: string; // Método de pagamento usado (se paga)
+  created_at?: string;
+}
+
+export interface CreditSale {
+  id: number;
+  clientName: string;
+  products: string; // Descrição dos produtos (mesmo formato do Transaction.service)
+  totalAmount: number; // Valor total
+  subtotal: number;
+  discount: number;
+  numberOfInstallments: number;
+  firstDueDate: string; // YYYY-MM-DD - Data do primeiro vencimento
+  status: CreditSaleStatus;
+  totalPaid: number; // Total já pago
+  remainingAmount: number; // Valor restante
+  date: string; // YYYY-MM-DD - Data da venda
+  clientId?: number; // ID do cliente na tabela clients (null se não foi salvo na base)
+  created_at?: string;
+}
+
+export interface SystemSettings {
+  creditSalesEnabled: boolean; // Se fiado está ativado
+}
+
+// --- CLIENTES ---
+export interface Client {
+  id: number;
+  fullName: string; // Nome completo (obrigatório)
+  whatsapp: string; // WhatsApp (obrigatório)
+  nickname?: string; // Apelido (opcional)
+  observation?: string; // Observação (opcional)
+  cpf?: string; // CPF (opcional)
+  created_at?: string;
 }

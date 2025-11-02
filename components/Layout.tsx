@@ -8,6 +8,7 @@ const navItems = [
     { path: '/schedule', icon: 'calendar_today', label: 'Agenda' },
     { path: '/register-service', icon: 'content_cut', label: 'Atendimentos' },
     { path: '/sales', icon: 'shopping_cart', label: 'Vendas' },
+    { path: '/credit-sales', icon: 'credit_card', label: 'Fiados' },
     { path: '/reports', icon: 'bar_chart', label: 'Relatórios'},
     { path: '/clients', icon: 'group', label: 'Clientes' },
     { path: '/financial', icon: 'payments', label: 'Financeiro' },

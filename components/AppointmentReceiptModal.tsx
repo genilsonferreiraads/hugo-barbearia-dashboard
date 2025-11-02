@@ -31,41 +31,67 @@ export const AppointmentReceiptModal: React.FC<AppointmentReceiptModalProps> = (
                 logging: false,
             });
 
-            // Download the image
-            canvas.toBlob((blob) => {
-                if (!blob) return;
+            const clientNameOnly = appointment.clientName.split('|')[0];
 
-                // Create download link
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `comprovante-agendamento-${new Date().getTime()}.png`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-
-                // Open WhatsApp with message
-                const clientPhone = appointment.clientName.includes('|') 
-                    ? appointment.clientName.split('|')[1].replace(/\D/g, '') 
-                    : '';
-
-                if (clientPhone) {
-                    const message = `Olá! 👋\n\nSeu agendamento foi confirmado! ✅\n\n📅 Data: ${appointment.date}\n⏰ Horário: ${appointment.time}\n\nA imagem do comprovante foi salva. Compartilhe-a no chat quando abrir o WhatsApp! 📸`;
-                    const whatsappUrl = `https://wa.me/55${clientPhone}?text=${encodeURIComponent(message)}`;
-                    window.open(whatsappUrl, '_blank');
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    alert('Erro ao gerar imagem');
+                    setIsGenerating(false);
+                    return;
                 }
 
+                const file = new File([blob], `comprovante-agendamento-${clientNameOnly}.png`, { type: 'image/png' });
+
+                // Tentar usar Web Share API (funciona no mobile)
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Comprovante de Agendamento',
+                            text: `Olá! 👋\n\nSeu agendamento foi confirmado! ✅\n\n📅 Data: ${appointment.date}\n⏰ Horário: ${appointment.time}`
+                        });
+                        
+                        setTimeout(() => {
+                            setIsGenerating(false);
+                            onClose();
+                        }, 300);
+                    } catch (error: any) {
+                        if (error.name !== 'AbortError') {
+                            // Se cancelar, não mostra erro
+                            console.error('Erro ao compartilhar:', error);
+                            fallbackDownload(blob, clientNameOnly);
+                        }
+                        setIsGenerating(false);
+                    }
+                } else {
+                    // Fallback: download da imagem
+                    fallbackDownload(blob, clientNameOnly);
                 setTimeout(() => {
                     setIsGenerating(false);
                     onClose();
                 }, 500);
+                }
             }, 'image/png');
         } catch (error) {
             console.error('Erro ao gerar comprovante:', error);
             alert('Erro ao gerar comprovante');
             setIsGenerating(false);
         }
+    };
+
+    const fallbackDownload = (blob: Blob, clientName: string) => {
+        // Download da imagem como fallback
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `comprovante-agendamento-${clientName}.png`;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        alert('Comprovante salvo! Você pode compartilhá-lo através de seus apps favoritos.');
     };
 
     if (!appointment) return null;
@@ -114,8 +140,8 @@ export const AppointmentReceiptModal: React.FC<AppointmentReceiptModalProps> = (
                             </>
                         ) : (
                             <>
-                                <i className="fa-brands fa-whatsapp"></i>
-                                Compartilhar no WhatsApp
+                                <i className="fa-solid fa-share-nodes"></i>
+                                Compartilhar Comprovante
                             </>
                         )}
                     </button>

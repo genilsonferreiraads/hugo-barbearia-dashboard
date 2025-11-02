@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTheme } from '../contexts.tsx';
+import { useTheme, useSystemSettings } from '../contexts.tsx';
 
 const Icon = ({ name }: { name: string }) => <span className="material-symbols-outlined">{name}</span>;
 
 export const SettingsMainPage: React.FC = () => {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
+  const { settings, updateCreditSalesEnabled } = useSystemSettings();
+  const [isUpdating, setIsUpdating] = useState(false);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -63,6 +65,58 @@ export const SettingsMainPage: React.FC = () => {
             <Icon name="chevron_right" />
           </div>
         </button>
+
+        {/* Configurações do Sistema */}
+        <div className="bg-white dark:bg-card-dark rounded-xl shadow-lg border border-slate-200 dark:border-border-dark">
+          <div className="p-6 border-b border-slate-200 dark:border-border-dark">
+            <h2 className="text-xl font-bold text-text-light-primary dark:text-text-dark-primary">
+              Configurações do Sistema
+            </h2>
+          </div>
+          <div className="p-6 space-y-6">
+            {/* Vendas no Fiado */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 dark:bg-primary/20">
+                  <Icon name="credit_card" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-text-light-primary dark:text-text-dark-primary">
+                    Vendas no Fiado
+                  </h3>
+                  <p className="text-sm text-text-light-secondary dark:text-text-dark-secondary mt-1">
+                    Ative ou desative a funcionalidade de vendas parceladas no fiado
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  if (isUpdating) return;
+                  try {
+                    setIsUpdating(true);
+                    await updateCreditSalesEnabled(!settings.creditSalesEnabled);
+                  } catch (error: any) {
+                    alert(`Erro ao atualizar configuração: ${error.message || 'Erro desconhecido'}`);
+                  } finally {
+                    setIsUpdating(false);
+                  }
+                }}
+                disabled={isUpdating}
+                className={`relative flex h-8 w-14 items-center rounded-full transition-colors duration-200 ${
+                  settings.creditSalesEnabled
+                    ? 'bg-primary'
+                    : 'bg-gray-300 dark:bg-gray-600'
+                } ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <span
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform duration-200 ${
+                    settings.creditSalesEnabled ? 'translate-x-7' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Aparência */}
         <div className="bg-white dark:bg-card-dark rounded-xl shadow-lg border border-slate-200 dark:border-border-dark">

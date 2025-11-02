@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useServices } from '../contexts.tsx';
-import { Appointment, Service, PaymentMethod, Transaction } from '../types.ts';
+import { useServices, useClients } from '../contexts.tsx';
+import { Appointment, Service, PaymentMethod, Transaction, Client } from '../types.ts';
+import { ClientSearchSelector } from './ClientSearchSelector.tsx';
 
 const paymentMethodOptions = Object.values(PaymentMethod);
 
@@ -54,7 +55,7 @@ const formatDiscountInput = (value: string): string => {
 export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = ({ appointment, onFinalize, isEditing = false, initialData, redirectTo }) => {
     const navigate = useNavigate();
     const { services } = useServices();
-    
+    const { clients, addClient } = useClients();
 
     const [step, setStep] = useState(1);
     const [selectedServices, setSelectedServices] = useState<Service[]>([]);
@@ -62,6 +63,11 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
     const [discount, setDiscount] = useState('');
     const [showAllServices, setShowAllServices] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [serviceSearchTerm, setServiceSearchTerm] = useState('');
+    
+    // Estados para cliente
+    const [clientName, setClientName] = useState('');
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
     const subtotal = useMemo(() => {
         return selectedServices.reduce((acc, service) => acc + service.price, 0);
@@ -77,7 +83,23 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
         return total < 0 ? 0 : total;
     }, [subtotal, discountValue]);
 
-    const displayedServices = showAllServices ? services : services.slice(0, 3);
+    // Filtrar serviços baseado na busca
+    const filteredServices = useMemo(() => {
+        if (!serviceSearchTerm.trim()) {
+            return services;
+        }
+        const searchLower = serviceSearchTerm.toLowerCase().trim();
+        return services.filter(service => 
+            service.name.toLowerCase().includes(searchLower)
+        );
+    }, [services, serviceSearchTerm]);
+
+    const displayedServices = useMemo(() => {
+        if (showAllServices) {
+            return filteredServices;
+        }
+        return filteredServices.slice(0, 6);
+    }, [filteredServices, showAllServices]);
 
     useEffect(() => {
         if (isEditing && initialData) {
@@ -177,8 +199,53 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
         try {
             setIsSubmitting(true);
             
+            // Verificar se precisa salvar novo cliente
+            let finalClientName = clientName.trim() || (() => {
+                if (appointment.clientName.includes('|')) {
+                    return appointment.clientName.split('|')[0];
+                } else if (appointment.clientName.includes('(')) {
+                    return appointment.clientName.split('(')[0].trim();
+                }
+                return appointment.clientName;
+            })();
+            
+            // Se digitou um nome diferente e não selecionou cliente da base, perguntar se quer salvar
+            if (clientName.trim() && !selectedClient) {
+                // Extrair nome original do appointment
+                const originalClientName = (() => {
+                    if (appointment.clientName.includes('|')) {
+                        return appointment.clientName.split('|')[0];
+                    } else if (appointment.clientName.includes('(')) {
+                        return appointment.clientName.split('(')[0].trim();
+                    }
+                    return appointment.clientName;
+                })();
+                
+                // Verificar se o cliente já existe na base
+                const clientExists = clients.some(c => 
+                    c.fullName.toLowerCase() === clientName.trim().toLowerCase()
+                );
+                
+                if (!clientExists && clientName.trim().toLowerCase() !== originalClientName.toLowerCase()) {
+                    // Nota: O modal de salvar cliente será exibido automaticamente pelo ClientSearchField
+                    // quando o usuário sair do campo sem selecionar um cliente existente
+                }
+            }
+            
+            // Construir clientName no formato original (com WhatsApp se houver)
+            let finalClientNameWithWhatsapp = finalClientName;
+            if (selectedClient && selectedClient.whatsapp) {
+                finalClientNameWithWhatsapp = `${finalClientName}|${selectedClient.whatsapp}`;
+            } else if (appointment.clientName.includes('|')) {
+                // Manter WhatsApp do appointment original se não mudou o cliente
+                const originalWhatsapp = appointment.clientName.split('|')[1];
+                if (originalWhatsapp) {
+                    finalClientNameWithWhatsapp = `${finalClientName}|${originalWhatsapp}`;
+                }
+            }
+            
             const transactionData: any = {
-                clientName: appointment.clientName,
+                clientName: finalClientNameWithWhatsapp,
                 service: selectedServices.map(s => s.name).join(', '),
                 paymentMethod: payments.map(p => p.method).join(', '),
                 subtotal: subtotal,
@@ -211,14 +278,28 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
         }
     };
 
-    const clientName = (() => {
-        if (appointment.clientName.includes('|')) {
-            return appointment.clientName.split('|')[0];
-        } else if (appointment.clientName.includes('(')) {
-            return appointment.clientName.split('(')[0].trim();
+    // Inicializar nome do cliente do appointment
+    useEffect(() => {
+        if (!clientName) {
+            const initialClientName = (() => {
+                if (appointment.clientName.includes('|')) {
+                    return appointment.clientName.split('|')[0];
+                } else if (appointment.clientName.includes('(')) {
+                    return appointment.clientName.split('(')[0].trim();
+                }
+                return appointment.clientName;
+            })();
+            setClientName(initialClientName);
+            
+            // Tentar encontrar cliente na base pelo nome
+            const foundClient = clients.find(c => 
+                c.fullName.toLowerCase() === initialClientName.toLowerCase()
+            );
+            if (foundClient) {
+                setSelectedClient(foundClient);
+            }
         }
-        return appointment.clientName;
-    })();
+    }, [appointment.clientName, clients, clientName]);
 
     const progressPercentage = (step / 2) * 100;
 
@@ -262,8 +343,29 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                         <div className="space-y-5 animate-fade-in">
                             {/* Client Info Card */}
                             <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
-                                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Cliente</p>
-                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{clientName}</h2>
+                                <label className="block space-y-2">
+                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Cliente</p>
+                                    <ClientSearchSelector
+                                        onSelectClient={(client) => {
+                                            setSelectedClient(client);
+                                            if (client) {
+                                                setClientName(client.fullName);
+                                            }
+                                        }}
+                                        value={clientName}
+                                        placeholder="Buscar cliente ou digite o nome..."
+                                        className="w-full"
+                                    />
+                                    {selectedClient && (
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                                            <Icon name="check_circle" className="text-green-500 text-sm" />
+                                            <span>{selectedClient.whatsapp}</span>
+                                            {selectedClient.nickname && (
+                                                <span>• {selectedClient.nickname}</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </label>
                             </div>
 
                             {/* Services Section */}
@@ -279,60 +381,103 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                                         <p className="text-2xl font-bold text-primary">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                        {displayedServices.map(service => {
-                                            const isSelected = selectedServices.some(s => s.id === service.id);
-                                            return (
-                                                <button 
-                                                    key={service.id}
+                                    {/* Barra de busca de serviços */}
+                                    <div className="mb-4">
+                                        <div className="relative">
+                                            <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 text-lg" />
+                                            <input
+                                                type="text"
+                                                placeholder="Buscar serviço..."
+                                                value={serviceSearchTerm}
+                                                onChange={(e) => {
+                                                    setServiceSearchTerm(e.target.value);
+                                                    setShowAllServices(false);
+                                                }}
+                                                className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all"
+                                            />
+                                            {serviceSearchTerm && (
+                                                <button
                                                     type="button"
-                                                    onClick={() => handleServiceToggle(service)}
-                                                    className={`p-3 rounded-lg border-2 transition-all text-left text-sm ${
-                                                        isSelected
-                                                            ? 'bg-primary/10 border-primary'
-                                                            : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:bg-gray-100 dark:hover:bg-gray-800'
-                                                    }`}
+                                                    onClick={() => setServiceSearchTerm('')}
+                                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                                                 >
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="flex-1">
-                                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{service.name}</p>
-                                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">R$ {service.price.toFixed(2).replace('.', ',')}</p>
-                                                        </div>
-                                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
-                                                            isSelected
-                                                                ? 'bg-primary border-primary'
-                                                                : 'border-gray-300 dark:border-gray-600'
-                                                        }`}>
-                                                            {isSelected && <Icon name="check" className="text-white text-sm" />}
-                                                        </div>
-                                                    </div>
+                                                    <Icon name="close" className="text-lg" />
                                                 </button>
-                                            );
-                                        })}
+                                            )}
+                                        </div>
                                     </div>
 
-                                    {services.length > 3 && (
-                                        <div className="mt-4 text-center">
-                                            {!showAllServices && (
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => setShowAllServices(true)}
-                                                    className="inline-flex items-center gap-1 text-primary hover:text-primary/80 font-semibold transition-colors text-sm"
-                                                >
-                                                    <Icon name="expand_more" className="text-lg" />
-                                                    <span>Exibir todos ({services.length})</span>
-                                                </button>
+                                    {displayedServices.length > 0 ? (
+                                        <>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                {displayedServices.map(service => {
+                                                    const isSelected = selectedServices.some(s => s.id === service.id);
+                                                    return (
+                                                        <button 
+                                                            key={service.id}
+                                                            type="button"
+                                                            onClick={() => handleServiceToggle(service)}
+                                                            className={`p-3 rounded-lg border transition-all text-left group ${
+                                                                isSelected
+                                                                    ? 'bg-primary/5 border-primary/30 hover:border-primary/50'
+                                                                    : 'bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-800/70'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className={`font-medium text-sm truncate ${
+                                                                        isSelected
+                                                                            ? 'text-primary'
+                                                                            : 'text-gray-900 dark:text-white'
+                                                                    }`}>
+                                                                        {service.name}
+                                                                    </p>
+                                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                                                        R$ {service.price.toFixed(2).replace('.', ',')}
+                                                                    </p>
+                                                                </div>
+                                                                <div className={`w-5 h-5 rounded flex items-center justify-center transition-all flex-shrink-0 ${
+                                                                    isSelected
+                                                                        ? 'bg-primary'
+                                                                        : 'border-2 border-gray-300 dark:border-gray-600 group-hover:border-primary/50'
+                                                                }`}>
+                                                                    {isSelected && <Icon name="check" className="text-white text-xs" />}
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {filteredServices.length > 6 && (
+                                                <div className="mt-4 text-center">
+                                                    {!showAllServices && (
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => setShowAllServices(true)}
+                                                            className="inline-flex items-center gap-1 text-primary hover:text-primary/80 font-medium transition-colors text-sm"
+                                                        >
+                                                            <Icon name="expand_more" className="text-lg" />
+                                                            <span>Exibir mais ({filteredServices.length - 6} restantes)</span>
+                                                        </button>
+                                                    )}
+                                                    {showAllServices && (
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => setShowAllServices(false)}
+                                                            className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 font-medium transition-colors text-sm"
+                                                        >
+                                                            <Icon name="expand_less" className="text-lg" />
+                                                            <span>Mostrar menos</span>
+                                                        </button>
+                                                    )}
+                                                </div>
                                             )}
-                                            {showAllServices && (
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => setShowAllServices(false)}
-                                                    className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 font-semibold transition-colors text-sm"
-                                                >
-                                                    <Icon name="expand_less" className="text-lg" />
-                                                    <span>Mostrar menos</span>
-                                                </button>
-                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                            <Icon name="search_off" className="text-4xl mb-2 opacity-50" />
+                                            <p className="text-sm">Nenhum serviço encontrado</p>
                                         </div>
                                     )}
                                 </div>

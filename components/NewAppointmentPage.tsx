@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Appointment } from '../types.ts';
-import { useAppointments } from '../contexts.tsx';
+import { Appointment, Client } from '../types.ts';
+import { useAppointments, useClients } from '../contexts.tsx';
+import { ClientSearchField } from './ClientSearchField.tsx';
 
 interface NewAppointmentPageProps {
     onSave: (appointment: Omit<Appointment, 'id' | 'status' | 'created_at'>) => Promise<void>;
@@ -57,9 +58,11 @@ const getTodayLocalDate = (): string => {
 export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, initialDate }) => {
     const navigate = useNavigate();
     const { appointments } = useAppointments();
+    const { clients } = useClients();
     const [step, setStep] = useState(1);
     const [clientName, setClientName] = useState('');
     const [whatsapp, setWhatsapp] = useState('');
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [date, setDate] = useState(initialDate || getTodayLocalDate());
     const [time, setTime] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -70,16 +73,11 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
     // Wait for appointments to update and show the receipt modal
     useEffect(() => {
         if (newAppointmentData) {
-            console.log('Waiting for new appointment:', newAppointmentData);
-            console.log('Current appointments count:', appointments.length);
-            
             const foundAppointment = appointments.find(apt => 
                 apt.clientName === newAppointmentData.clientName && 
                 apt.date === newAppointmentData.date && 
                 normalizeTime(apt.time) === normalizeTime(newAppointmentData.time)
             );
-            
-            console.log('Found appointment in useEffect:', foundAppointment);
             
             if (foundAppointment) {
                 // Navigate to receipt page
@@ -106,15 +104,25 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
 
     const handleNextStep = () => {
         setErrorMessage('');
-        if (step === 1 && clientName.trim()) {
-            if (whatsapp) {
+        
+        // Verificar se há nome digitado (mesmo que não esteja salvo na base)
+        const hasName = clientName && clientName.trim().length > 0;
+        
+        if (step === 1 && hasName) {
+            // WhatsApp é opcional - apenas validar se foi preenchido
+            if (whatsapp && whatsapp.trim()) {
                 const numbers = whatsapp.replace(/\D/g, '');
-                if (numbers.length < 11) {
-                    setErrorMessage("Por favor, insira um número de WhatsApp válido com DDD e 9 dígitos.");
+                if (numbers.length < 10 || numbers.length > 11) {
+                    setErrorMessage("Por favor, insira um número de WhatsApp válido com DDD (10 ou 11 dígitos).");
                     return;
                 }
             }
+            // Pode prosseguir mesmo sem salvar o cliente na base de dados
             setStep(2);
+        } else {
+            if (!hasName) {
+                setErrorMessage("Por favor, informe o nome do cliente.");
+            }
         }
     };
 
@@ -157,9 +165,9 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                 service: '',
                 date,
                 time,
+                clientId: selectedClient?.id, // Incluir clientId se cliente foi selecionado da base
             });
             
-            console.log('Appointment saved, storing data for modal...');
             // Store the data and wait for appointments to update via useEffect
             setNewAppointmentData({
                 clientName: clientNameWithWhatsApp,
@@ -224,23 +232,40 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                             <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
                                 <label className="block space-y-2">
                                     <p className="text-sm font-semibold text-gray-900 dark:text-white">Nome do Cliente</p>
-                                    <input 
-                                        type="text"
-                                        required
-                                        autoFocus
-                                        className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
-                                        placeholder="Digite o nome do cliente"
-                                        value={clientName}
-                                        onChange={(e) => setClientName(e.target.value)}
-                                        onBlur={() => setClientName(capitalizeName(clientName))}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                if (clientName.trim()) {
-                                                    whatsappInputRef.current?.focus();
+                                    <ClientSearchField
+                                        onSelectClient={(client) => {
+                                            setSelectedClient(client);
+                                            if (client) {
+                                                setClientName(client.fullName);
+                                                setWhatsapp(client.whatsapp);
+                                            } else {
+                                                // Não limpar clientName aqui - permitir que o usuário continue com o nome digitado
+                                                // setClientName('');
+                                                // setWhatsapp('');
+                                            }
+                                        }}
+                                        onValueChange={(name) => {
+                                            // SEMPRE atualizar clientName quando o valor muda
+                                            setClientName(name);
+                                            // Se limpar o campo, limpar seleção e WhatsApp
+                                            if (!name.trim()) {
+                                                setSelectedClient(null);
+                                                setWhatsapp('');
+                                            } else {
+                                                // Se está digitando um nome novo, manter o nome mas limpar seleção
+                                                // Isso permite que o usuário continue sem salvar o cliente
+                                                const found = clients.find(c => 
+                                                    c.fullName.toLowerCase() === name.toLowerCase()
+                                                );
+                                                if (!found) {
+                                                    setSelectedClient(null);
+                                                    // Não limpar whatsapp aqui - deixar o usuário preencher se quiser
                                                 }
                                             }
                                         }}
+                                        value={clientName}
+                                        placeholder="Digite o nome do cliente"
+                                        className="w-full"
                                     />
                                 </label>
 
@@ -353,7 +378,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                 <button 
                                     type="button" 
                                     onClick={handleNextStep}
-                                    disabled={!clientName.trim()}
+                                    disabled={!clientName || !clientName.trim()}
                                     className="flex-1 sm:flex-auto px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
                                 >
                                     <span>Continuar</span>

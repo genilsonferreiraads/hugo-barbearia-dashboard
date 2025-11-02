@@ -167,6 +167,15 @@ export const TransactionDetailPage: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex gap-2 justify-end">
+                            {(transaction.service.includes('Fiado -') || (transaction.category === 'vendas' && transaction.paymentMethod === 'Fiado')) && (
+                                <button
+                                    onClick={() => navigate(`/payment-receipt?id=${transaction.id}`)}
+                                    className="flex items-center justify-center size-9 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                                    title="Ver Comprovante"
+                                >
+                                    <Icon name="receipt" className="text-base" />
+                                </button>
+                            )}
                             <button
                                 onClick={handleEdit}
                                 className="flex items-center justify-center size-9 rounded-lg bg-primary/10 dark:bg-primary/20 text-primary hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors"
@@ -197,6 +206,15 @@ export const TransactionDetailPage: React.FC = () => {
                             <p className="text-sm text-gray-500 dark:text-gray-400">{formatDateTime(transaction)}</p>
                         </div>
                         <div className="flex gap-2">
+                            {(transaction.service.includes('Fiado -') || (transaction.category === 'vendas' && transaction.paymentMethod === 'Fiado')) && (
+                                <button
+                                    onClick={() => navigate(`/payment-receipt?id=${transaction.id}`)}
+                                    className="flex items-center justify-center size-10 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                                    title="Ver Comprovante"
+                                >
+                                    <Icon name="receipt" className="text-lg" />
+                                </button>
+                            )}
                             <button
                                 onClick={handleEdit}
                                 className="flex items-center justify-center size-10 rounded-lg bg-primary/10 dark:bg-primary/20 text-primary hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors"

@@ -135,32 +135,61 @@ export const AppointmentDetailPage: React.FC<AppointmentDetailPageProps> = ({ ap
 
             const clientNameOnly = name;
 
-            canvas.toBlob((blob) => {
+            canvas.toBlob(async (blob) => {
                 if (!blob) {
                     alert('Erro ao gerar imagem: blob nulo');
                     setIsGenerating(false);
                     return;
                 }
 
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `comprovante-${clientNameOnly}.png`;
-                
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                setTimeout(() => {
-                    URL.revokeObjectURL(url);
+                const file = new File([blob], `comprovante-${clientNameOnly}.png`, { type: 'image/png' });
+
+                // Tentar usar Web Share API (funciona no mobile)
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Comprovante de Agendamento',
+                            text: `Comprovante de agendamento - ${clientNameOnly} - ${formatDate(appointment.date)} às ${appointment.time}`
+                        });
+                        setIsGenerating(false);
+                    } catch (error: any) {
+                        if (error.name !== 'AbortError') {
+                            // Se cancelar, não mostra erro
+                            console.error('Erro ao compartilhar:', error);
+                            fallbackDownload(blob, clientNameOnly);
+                        }
+                        setIsGenerating(false);
+                    }
+                } else {
+                    // Fallback: download da imagem
+                    fallbackDownload(blob, clientNameOnly);
                     setIsGenerating(false);
-                }, 500);
+                }
             }, 'image/png');
 
         } catch (error) {
             alert(`Erro ao gerar comprovante: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
             setIsGenerating(false);
         }
+    };
+
+    const fallbackDownload = (blob: Blob, clientName: string) => {
+        // Download da imagem como fallback
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `comprovante-${clientName}.png`;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 500);
+        
+        alert('Comprovante salvo! Você pode compartilhá-lo através de seus arquivos.');
     };
 
     const formatDate = (dateStr: string): string => {
@@ -266,8 +295,8 @@ export const AppointmentDetailPage: React.FC<AppointmentDetailPageProps> = ({ ap
                             </>
                         ) : (
                             <>
-                                <Icon name="download" className="text-base sm:text-lg" />
-                                <span>Baixar Comprovante</span>
+                                <Icon name="share" className="text-base sm:text-lg" />
+                                <span>Compartilhar Comprovante</span>
                             </>
                         )}
                     </button>

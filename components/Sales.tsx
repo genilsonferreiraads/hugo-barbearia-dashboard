@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProducts, useTransactions, useEditTransaction } from '../contexts.tsx';
-import { Product, PaymentMethod, Transaction } from '../types.ts';
+import { useProducts, useTransactions, useEditTransaction, useSystemSettings, useCreditSales, useClients } from '../contexts.tsx';
+import { Product, PaymentMethod, Transaction, Client } from '../types.ts';
+import { ClientSearchField } from './ClientSearchField.tsx';
 
-const paymentMethodOptions = Object.values(PaymentMethod);
+const paymentMethodOptions = Object.values(PaymentMethod).filter(m => m !== PaymentMethod.Credit); // Remover Fiado da lista normal
 
 type PaymentState = {
     id: number;
@@ -44,6 +45,9 @@ export const SalesPage: React.FC = () => {
     const { products } = useProducts();
     const { addTransaction, updateTransaction } = useTransactions();
     const { transaction: editTransaction, onSave: onEditSave, clearEditTransactionData } = useEditTransaction();
+    const { settings } = useSystemSettings();
+    const { addCreditSale } = useCreditSales();
+    const { clients, addClient } = useClients();
 
     const isEditing = !!editTransaction && (editTransaction.type === 'product' || editTransaction.clientName === 'Venda de Produto');
 
@@ -53,6 +57,25 @@ export const SalesPage: React.FC = () => {
     const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: '' as PaymentMethod | '', amount: '' }]);
     const [discount, setDiscount] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // Estados para venda avulso
+    const [avulsoClientName, setAvulsoClientName] = useState('');
+    const [avulsoSelectedClient, setAvulsoSelectedClient] = useState<Client | null>(null);
+    
+    // Estados para venda no fiado
+    const [isCreditSale, setIsCreditSale] = useState(false);
+    const [clientName, setClientName] = useState('');
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+    const [numberOfInstallments, setNumberOfInstallments] = useState(1);
+    const [installmentsInputValue, setInstallmentsInputValue] = useState('1'); // Estado para permitir edição livre
+    const [firstDueDate, setFirstDueDate] = useState(() => {
+        const nextMonth = new Date();
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        const year = nextMonth.getFullYear();
+        const month = String(nextMonth.getMonth() + 1).padStart(2, '0');
+        const day = String(nextMonth.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    });
 
     // Filter products based on search query
     const filteredProducts = useMemo(() => {
@@ -191,9 +214,23 @@ export const SalesPage: React.FC = () => {
 
     const handlePaymentChange = (id: number, field: 'method' | 'amount', value: string) => {
         const newPayments = payments.map(p => p.id === id ? { ...p, [field]: value } : p);
-        if (field === 'method' && newPayments.length === 1 && value) {
-            // Quando seleciona método no primeiro pagamento, atualiza o valor automaticamente
-            newPayments[0].amount = totalValue.toFixed(2).replace('.', ',');
+        if (field === 'method') {
+            // Verificar se é fiado
+            if (value === PaymentMethod.Credit) {
+                setIsCreditSale(true);
+                // Limpar outros pagamentos se existirem
+                if (newPayments.length > 1) {
+                    setPayments([newPayments[0]]);
+                    return;
+                }
+            } else {
+                setIsCreditSale(false);
+            }
+            
+            if (newPayments.length === 1 && value) {
+                // Quando seleciona método no primeiro pagamento, atualiza o valor automaticamente
+                newPayments[0].amount = totalValue.toFixed(2).replace('.', ',');
+            }
         } else if (field === 'amount' && newPayments.length === 2) {
             const changedIndex = newPayments.findIndex(p => p.id === id);
             const otherIndex = 1 - changedIndex;
@@ -233,17 +270,33 @@ export const SalesPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Verificar se todos os pagamentos têm método selecionado
-        const hasInvalidPayment = payments.some(p => !p.method || p.method === '');
-        if (hasInvalidPayment) {
-            alert('Por favor, selecione a forma de pagamento para todos os pagamentos.');
-            return;
-        }
-        
-        const totalPaid = payments.reduce((acc, p) => acc + (parseFloat(p.amount.replace(',', '.')) || 0), 0);
-        if (Math.abs(totalPaid - totalValue) > 0.01) {
-            alert(`O total pago (R$ ${totalPaid.toFixed(2)}) não corresponde ao valor final (R$ ${totalValue.toFixed(2)}). Ajuste os valores.`);
-            return;
+        // Se for venda no fiado
+        if (isCreditSale) {
+            if (!clientName.trim()) {
+                alert('Por favor, informe o nome do cliente.');
+                return;
+            }
+            if (numberOfInstallments < 1 || numberOfInstallments > 24) {
+                alert('O número de parcelas deve ser entre 1 e 24.');
+                return;
+            }
+            if (!firstDueDate) {
+                alert('Por favor, informe a data do primeiro vencimento.');
+                return;
+            }
+        } else {
+            // Verificar se todos os pagamentos têm método selecionado
+            const hasInvalidPayment = payments.some(p => !p.method || p.method === '');
+            if (hasInvalidPayment) {
+                alert('Por favor, selecione a forma de pagamento para todos os pagamentos.');
+                return;
+            }
+            
+            const totalPaid = payments.reduce((acc, p) => acc + (parseFloat(p.amount.replace(',', '.')) || 0), 0);
+            if (Math.abs(totalPaid - totalValue) > 0.01) {
+                alert(`O total pago (R$ ${totalPaid.toFixed(2)}) não corresponde ao valor final (R$ ${totalValue.toFixed(2)}). Ajuste os valores.`);
+                return;
+            }
         }
 
         try {
@@ -257,7 +310,7 @@ export const SalesPage: React.FC = () => {
                 .join(', ');
 
             if (isEditing && editTransaction && onEditSave) {
-                // Update existing transaction
+                // Update existing transaction (não permite editar para fiado)
                 await onEditSave({
                     service: serviceDescription,
                     paymentMethod: payments.map(p => p.method).join(', '),
@@ -269,10 +322,81 @@ export const SalesPage: React.FC = () => {
                 
                 clearEditTransactionData();
                 navigate('/sales', { state: { successMessage: 'Venda atualizada com sucesso!' } });
+            } else if (isCreditSale) {
+                // Criar venda no fiado
+                const installmentAmount = totalValue / numberOfInstallments;
+                const installments = Array.from({ length: numberOfInstallments }, (_, index) => ({
+                    amount: index === numberOfInstallments - 1 
+                        ? totalValue - (installmentAmount * (numberOfInstallments - 1)) // Última parcela ajusta para não ter centavos perdidos
+                        : Math.floor(installmentAmount * 100) / 100, // Arredonda para 2 casas decimais
+                }));
+
+                await addCreditSale({
+                    clientName: clientName.trim(),
+                    products: serviceDescription,
+                    totalAmount: totalValue,
+                    subtotal: subtotal,
+                    discount: discountValue,
+                    numberOfInstallments: numberOfInstallments,
+                    firstDueDate: firstDueDate,
+                    date: getTodayLocalDate(),
+                }, installments);
+
+                navigate('/credit-sales', { state: { successMessage: 'Venda no fiado registrada com sucesso!' } });
             } else {
+                // Venda avulso - verificar se precisa salvar cliente
+                let finalClientName = avulsoClientName.trim() || 'Venda de Produto';
+                
+                // Se digitou um nome e não selecionou cliente da base, perguntar se quer salvar
+                if (avulsoClientName.trim() && !avulsoSelectedClient && avulsoClientName.trim() !== 'Venda de Produto') {
+                    // Verificar se o cliente já existe na base
+                    const clientExists = clients.some(c => 
+                        c.fullName.toLowerCase() === avulsoClientName.trim().toLowerCase()
+                    );
+                    
+                    if (!clientExists) {
+                        // Perguntar se quer salvar como cliente
+                        const shouldSave = confirm(
+                            `Deseja salvar "${avulsoClientName.trim()}" como cliente na base de dados?\n\n` +
+                            `Isso permitirá buscar este cliente em vendas futuras.`
+                        );
+                        
+                        if (shouldSave) {
+                            // Mostrar modal para pedir WhatsApp (obrigatório)
+                            const whatsapp = prompt(
+                                `Para salvar como cliente, informe o WhatsApp de "${avulsoClientName.trim()}":\n\n` +
+                                `Formato: (87) 99155-6444`
+                            );
+                            
+                            if (whatsapp && whatsapp.trim()) {
+                                try {
+                                    const numbers = whatsapp.replace(/\D/g, '');
+                                    if (numbers.length < 10 || numbers.length > 11) {
+                                        alert('WhatsApp inválido. O cliente não foi salvo, mas a venda foi registrada.');
+                                    } else {
+                                        await addClient({
+                                            fullName: avulsoClientName.trim(),
+                                            whatsapp: whatsapp.trim(),
+                                            nickname: undefined,
+                                            observation: undefined,
+                                            cpf: undefined,
+                                        });
+                                        alert('Cliente salvo com sucesso!');
+                                    }
+                                } catch (error: any) {
+                                    console.error('Erro ao salvar cliente:', error);
+                                    alert('Erro ao salvar cliente. A venda será registrada mesmo assim.');
+                                }
+                            } else {
+                                alert('WhatsApp não informado. O cliente não foi salvo, mas a venda foi registrada.');
+                            }
+                        }
+                    }
+                }
+                
                 // Create new transaction
                 const transactionData: Omit<Transaction, 'id' | 'created_at'> = {
-                    clientName: 'Venda de Produto',
+                    clientName: finalClientName,
                     service: serviceDescription,
                     paymentMethod: payments.map(p => p.method).join(', '),
                     subtotal: subtotal,
@@ -340,6 +464,45 @@ export const SalesPage: React.FC = () => {
                     {/* Step 1: Product Selection */}
                     {step === 1 && (
                         <div className="space-y-5 animate-fade-in">
+                            {/* Cliente para Venda Avulso */}
+                            {!isCreditSale && (
+                                <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                                    <label className="block space-y-2">
+                                        <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                                            Cliente <span className="text-gray-500 text-xs">(Opcional)</span>
+                                        </p>
+                                        <ClientSearchField
+                                            onSelectClient={(client) => {
+                                                setAvulsoSelectedClient(client);
+                                                if (client) {
+                                                    setAvulsoClientName(client.fullName);
+                                                } else {
+                                                    setAvulsoClientName('');
+                                                }
+                                            }}
+                                            onValueChange={(name) => {
+                                                setAvulsoClientName(name);
+                                                if (!name.trim()) {
+                                                    setAvulsoSelectedClient(null);
+                                                }
+                                            }}
+                                            value={avulsoClientName}
+                                            placeholder="Buscar cliente ou digite o nome... (deixe vazio para 'Venda de Produto')"
+                                            className="w-full"
+                                        />
+                                        {avulsoSelectedClient && (
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                                                <Icon name="check_circle" className="text-green-500 text-sm" />
+                                                <span>{avulsoSelectedClient.whatsapp}</span>
+                                                {avulsoSelectedClient.nickname && (
+                                                    <span>• {avulsoSelectedClient.nickname}</span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </label>
+                                </div>
+                            )}
+                            
                             {/* Search Bar */}
                             <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
                                 <label className="block space-y-2">
@@ -633,6 +796,47 @@ export const SalesPage: React.FC = () => {
                                     <p className="text-xs text-gray-500 dark:text-gray-400">Selecione como será realizado o pagamento</p>
                                 </div>
 
+                                {/* Opção de Fiado (se habilitada) */}
+                                {settings.creditSalesEnabled && (
+                                    <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={isCreditSale}
+                                                onChange={(e) => {
+                                                    setIsCreditSale(e.target.checked);
+                                                    if (e.target.checked) {
+                                                        // Limpar métodos de pagamento normais
+                                                        setPayments([{ id: Date.now(), method: PaymentMethod.Credit, amount: totalValue.toFixed(2).replace('.', ',') }]);
+                                                        // Resetar valores do fiado
+                                                        setInstallmentsInputValue('1');
+                                                        setNumberOfInstallments(1);
+                                                        // Limpar cliente da venda avulso
+                                                        setAvulsoClientName('');
+                                                        setAvulsoSelectedClient(null);
+                                                    } else {
+                                                        setPayments([{ id: Date.now(), method: '' as PaymentMethod | '', amount: '' }]);
+                                                        // Limpar cliente do fiado
+                                                        setClientName('');
+                                                        setSelectedClient(null);
+                                                    }
+                                                }}
+                                                className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary focus:ring-2"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <Icon name="credit_card" className="text-primary text-lg" />
+                                                    <span className="font-semibold text-gray-900 dark:text-white">Vender no Fiado</span>
+                                                </div>
+                                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                                    Registre a venda como fiado parcelado
+                                                </p>
+                                            </div>
+                                        </label>
+                                    </div>
+                                )}
+
+                                {!isCreditSale && (
                                 <div className="space-y-3">
                                     {payments.map((payment, index) => (
                                         <div key={payment.id} className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
@@ -684,16 +888,127 @@ export const SalesPage: React.FC = () => {
                                         </div>
                                     ))}
                                 </div>
+                                )}
 
-                                {payments.length < 2 && payments[0].method && (
-                                    <button 
-                                        type="button" 
-                                        onClick={handleAddPayment} 
-                                        className="w-full py-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-primary font-semibold hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors flex items-center justify-center gap-2 text-sm"
-                                    >
-                                        <Icon name="add_circle" className="text-lg" />
-                                        <span>Adicionar outra forma</span>
-                                    </button>
+                                {/* Campos de Fiado */}
+                                {isCreditSale && settings.creditSalesEnabled && (
+                                    <div className="bg-gradient-to-br from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10 rounded-lg p-4 border border-primary/30 space-y-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Icon name="credit_card" className="text-primary text-lg" />
+                                            <h4 className="font-bold text-gray-900 dark:text-white">Informações do Fiado</h4>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-gray-900 dark:text-white block">
+                                                    Nome do Cliente *
+                                                </label>
+                                                <ClientSearchField
+                                                    onSelectClient={(client) => {
+                                                        setSelectedClient(client);
+                                                        if (client) {
+                                                            setClientName(client.fullName);
+                                                        } else {
+                                                            setClientName('');
+                                                        }
+                                                    }}
+                                                    onValueChange={(name) => {
+                                                        setClientName(name);
+                                                        if (!name.trim()) {
+                                                            setSelectedClient(null);
+                                                        }
+                                                    }}
+                                                    value={clientName}
+                                                    placeholder="Buscar cliente ou digite o nome..."
+                                                    className="w-full"
+                                                />
+                                                {selectedClient && (
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                                                        <Icon name="check_circle" className="text-green-500 text-sm" />
+                                                        <span>{selectedClient.whatsapp}</span>
+                                                        {selectedClient.nickname && (
+                                                            <span>• {selectedClient.nickname}</span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="space-y-1.5">
+                                                    <label className="text-xs font-semibold text-gray-900 dark:text-white block">
+                                                        Número de Parcelas *
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="24"
+                                                        value={installmentsInputValue}
+                                                        onChange={(e) => {
+                                                            const inputValue = e.target.value;
+                                                            // Permite edição livre (incluindo campo vazio)
+                                                            setInstallmentsInputValue(inputValue);
+                                                            
+                                                            // Atualiza o valor numérico se válido
+                                                            if (inputValue !== '' && inputValue !== '-') {
+                                                                const numValue = parseInt(inputValue);
+                                                                if (!isNaN(numValue) && numValue > 0) {
+                                                                    const clampedValue = Math.min(24, Math.max(1, numValue));
+                                                                    setNumberOfInstallments(clampedValue);
+                                                                    // Sincroniza o input se foi ajustado
+                                                                    if (clampedValue !== numValue) {
+                                                                        setInstallmentsInputValue(String(clampedValue));
+                                                                    }
+                                                                }
+                                                            }
+                                                        }}
+                                                        onBlur={(e) => {
+                                                            // Valida e corrige quando sai do campo
+                                                            const inputValue = e.target.value.trim();
+                                                            if (inputValue === '' || isNaN(parseInt(inputValue)) || parseInt(inputValue) < 1) {
+                                                                setInstallmentsInputValue('1');
+                                                                setNumberOfInstallments(1);
+                                                            } else {
+                                                                const numValue = parseInt(inputValue);
+                                                                const clampedValue = Math.min(24, Math.max(1, numValue));
+                                                                setInstallmentsInputValue(String(clampedValue));
+                                                                setNumberOfInstallments(clampedValue);
+                                                            }
+                                                        }}
+                                                        className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-sm font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                                        required
+                                                    />
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                        Valor por parcela: R$ {(totalValue / numberOfInstallments).toFixed(2).replace('.', ',')}
+                                                    </p>
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <label className="text-xs font-semibold text-gray-900 dark:text-white block">
+                                                        Primeiro Vencimento *
+                                                    </label>
+                                                    <input
+                                                        type="date"
+                                                        value={firstDueDate}
+                                                        onChange={(e) => setFirstDueDate(e.target.value)}
+                                                        min={getTodayLocalDate()}
+                                                        className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-sm font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white dark:bg-gray-900/30 rounded-lg p-3 mt-2">
+                                                <div className="flex justify-between items-center text-sm mb-1">
+                                                    <span className="text-gray-600 dark:text-gray-400">Total a Parcelar:</span>
+                                                    <span className="font-bold text-gray-900 dark:text-white">R$ {totalValue.toFixed(2).replace('.', ',')}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="text-gray-600 dark:text-gray-400">Parcelas de:</span>
+                                                    <span className="font-semibold text-primary">R$ {(totalValue / numberOfInstallments).toFixed(2).replace('.', ',')}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </div>

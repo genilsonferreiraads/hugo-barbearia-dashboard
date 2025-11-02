@@ -461,12 +461,24 @@ export const DashboardPage: React.FC = () => {
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
     const [expandedAppointmentId, setExpandedAppointmentId] = useState<number | null>(null);
     
-    const { appointments, addAppointment, updateAppointmentStatus, deleteAppointment } = useAppointments();
-    const { transactions, addTransaction } = useTransactions();
+    const { appointments, fetchAppointments, addAppointment, updateAppointmentStatus, deleteAppointment } = useAppointments();
+    const { transactions, fetchTransactions, addTransaction } = useTransactions();
     const { setFinalizeData } = useFinalizeAppointment();
     const { setNewAppointmentData } = useNewAppointment();
     const { setEditAppointmentData } = useEditAppointment();
     const navigate = useNavigate();
+    
+    // Recarregar agendamentos e transações quando cliente for atualizado
+    useEffect(() => {
+        const handleClientUpdated = () => {
+            fetchAppointments();
+            fetchTransactions();
+        };
+        window.addEventListener('clientUpdated', handleClientUpdated);
+        return () => {
+            window.removeEventListener('clientUpdated', handleClientUpdated);
+        };
+    }, [fetchAppointments, fetchTransactions]);
 
     const todayStats = useMemo(() => {
         const todayStr = getTodayLocalDate();

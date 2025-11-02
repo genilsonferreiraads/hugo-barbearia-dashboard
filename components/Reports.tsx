@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Transaction, PaymentMethod } from '../types.ts';
-import { useTransactions, useServices, useProducts } from '../contexts.tsx';
+import { useTransactions, useServices, useProducts, useCreditSales } from '../contexts.tsx';
 
 const Icon = ({ name, className, style }: { name: string; className?: string; style?: React.CSSProperties }) => 
     <span className={`material-symbols-outlined ${className || ''}`} style={style}>{name}</span>;
@@ -45,20 +45,36 @@ const getTodayRange = () => {
 };
 
 export const ReportsPage: React.FC = () => {
-    const { transactions } = useTransactions();
+    const { transactions, fetchTransactions } = useTransactions();
     const { services } = useServices();
     const { products } = useProducts();
+    const { installments, fetchCreditSales } = useCreditSales();
     const navigate = useNavigate();
+    
+    // Recarregar transações e credit sales quando cliente for atualizado
+    useEffect(() => {
+        const handleClientUpdated = () => {
+            fetchTransactions();
+            fetchCreditSales();
+        };
+        window.addEventListener('clientUpdated', handleClientUpdated);
+        return () => {
+            window.removeEventListener('clientUpdated', handleClientUpdated);
+        };
+    }, [fetchTransactions, fetchCreditSales]);
     const [searchParams] = useSearchParams();
     
     const [filterType, setFilterType] = useState<'all' | 'vendas' | 'servicos'>('all');
-    const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'year' | 'all-time'>(() => {
+    const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'year' | 'all-time' | 'custom'>(() => {
         // Se veio da dashboard com parâmetro date=today, filtra por hoje
         return searchParams.get('date') === 'today' ? 'today' : 'year';
     });
     const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
+    const [monthlyGoal, setMonthlyGoal] = useState(10000); // Meta mensal padrão R$ 10.000
     const [isDragging, setIsDragging] = useState(false);
     const [topServicesProductsTab, setTopServicesProductsTab] = useState<'servicos' | 'produtos'>('servicos');
     const [activeChartTab, setActiveChartTab] = useState<'performance' | 'line' | 'pie' | 'peak' | 'top'>('performance');
@@ -99,7 +115,7 @@ export const ReportsPage: React.FC = () => {
     }, [isDragging]);
 
     // Get date ranges
-    const getDateRange = (filter: 'today' | 'week' | 'month' | 'year' | 'all-time') => {
+    const getDateRange = (filter: 'today' | 'week' | 'month' | 'year' | 'all-time' | 'custom') => {
         const today = new Date();
         const startDate = new Date();
         
@@ -130,6 +146,15 @@ export const ReportsPage: React.FC = () => {
                     start: formatLocalDate(startDate),
                     end: getTodayLocalDate()
                 };
+            case 'custom':
+                // Use custom date range if both dates are set
+                if (customStartDate && customEndDate) {
+                    return {
+                        start: customStartDate,
+                        end: customEndDate
+                    };
+                }
+                return null;
             case 'all-time':
             default:
                 return null; // No date range for all-time
@@ -252,13 +277,33 @@ export const ReportsPage: React.FC = () => {
         const services = filteredTransactions.filter(t => t.category === 'agendado' || t.category === 'avulso').length;
         const sales = filteredTransactions.filter(t => t.category === 'vendas').length;
         
+        // Separar vendas normais de vendas no fiado
+        const creditSales = filteredTransactions.filter(t => 
+            t.category === 'vendas' && t.service.includes('Fiado -')
+        );
+        const creditSalesTotal = creditSales.reduce((sum, t) => sum + t.value, 0);
+        const creditSalesCount = creditSales.length;
+        
+        // Ticket Médio - valor médio por transação
+        const averageTicket = count > 0 ? total / count : 0;
+        
+        // Total a Receber do Fiado - parcelas pendentes de TODAS as vendas a crédito
+        const pendingInstallments = installments.filter(inst => inst.status === 'pendente');
+        const totalReceivable = pendingInstallments.reduce((sum, inst) => sum + inst.amount, 0);
+        const pendingInstallmentsCount = pendingInstallments.length;
+        
         return {
             total,
             count,
             services,
-            sales
+            sales,
+            creditSalesTotal,
+            creditSalesCount,
+            averageTicket,
+            totalReceivable,
+            pendingInstallmentsCount
         };
-    }, [filteredTransactions]);
+    }, [filteredTransactions, installments]);
 
     const getTotalLabel = () => {
         switch(dateFilter) {
@@ -1232,6 +1277,18 @@ export const ReportsPage: React.FC = () => {
                 >
                     Todo Tempo
                 </button>
+                <button
+                    onClick={() => setDateFilter('custom')}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                        dateFilter === 'custom'
+                            ? 'bg-primary text-white shadow-md'
+                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                    }`}
+                >
+                    <Icon name="date_range" className="text-base" />
+                    <span className="hidden sm:inline">Período</span>
+                    <span className="sm:hidden">Data</span>
+                </button>
                 
                 {/* Advanced Filters Toggle */}
                 <button
@@ -1253,42 +1310,204 @@ export const ReportsPage: React.FC = () => {
                 </button>
             </div>
 
+            {/* Custom Date Range Picker */}
+            {dateFilter === 'custom' && (
+                <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 mb-6 shadow-sm animate-fade-in">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            <Icon name="calendar_today" className="text-xl text-primary" />
+                            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                Selecione o Período:
+                            </label>
+                        </div>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">De:</label>
+                                <input
+                                    type="date"
+                                    value={customStartDate}
+                                    onChange={(e) => setCustomStartDate(e.target.value)}
+                                    max={customEndDate || getTodayLocalDate()}
+                                    className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Até:</label>
+                                <input
+                                    type="date"
+                                    value={customEndDate}
+                                    onChange={(e) => setCustomEndDate(e.target.value)}
+                                    min={customStartDate}
+                                    max={getTodayLocalDate()}
+                                    className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                />
+                            </div>
+                            {customStartDate && customEndDate && (
+                                <button
+                                    onClick={() => {
+                                        setCustomStartDate('');
+                                        setCustomEndDate('');
+                                    }}
+                                    className="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors flex items-center gap-1"
+                                >
+                                    <Icon name="close" className="text-base" />
+                                    Limpar
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    {customStartDate && customEndDate && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            Mostrando dados de {new Date(customStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(customEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+                        </p>
+                    )}
+                </div>
+            )}
+
             {/* Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">{getTotalLabel()}</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totals.total)}</p>
+                {/* Card: Total Geral */}
+                <div className="bg-gradient-to-br from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10 rounded-xl border border-primary/30 p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Icon name="payments" className="text-xl text-primary" />
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{getTotalLabel()}</p>
+                    </div>
+                    <p className="text-2xl font-bold text-primary">{formatCurrency(totals.total)}</p>
                     {getDateRangeText() && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">{getDateRangeText()}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1.5">{getDateRangeText()}</p>
                     )}
                     {periodComparison && (
                         <div className="mt-2 flex items-center gap-1.5">
                             <Icon 
                                 name={periodComparison.difference >= 0 ? "trending_up" : "trending_down"} 
-                                className={`text-sm ${periodComparison.difference >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                                className={`text-sm ${periodComparison.difference >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
                             />
-                            <span className={`text-xs font-semibold ${periodComparison.difference >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            <span className={`text-xs font-semibold ${periodComparison.difference >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                 {periodComparison.difference >= 0 ? '+' : ''}{periodComparison.percentage.toFixed(1)}%
                             </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
                                 vs período anterior
                             </span>
                         </div>
                     )}
                 </div>
+
+                {/* Card: Total de Receitas */}
                 <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Total de Receitas</p>
+                    <div className="flex items-center gap-2 mb-2">
+                        <Icon name="receipt_long" className="text-xl text-blue-600 dark:text-blue-400" />
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total de Receitas</p>
+                    </div>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">{totals.count}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{totals.services + totals.sales} transações</p>
                 </div>
+
+                {/* Card: Serviços */}
                 <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Serviços</p>
+                    <div className="flex items-center gap-2 mb-2">
+                        <Icon name="content_cut" className="text-xl text-indigo-600 dark:text-indigo-400" />
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Serviços</p>
+                    </div>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">{totals.services}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{totals.services === 1 ? 'atendimento' : 'atendimentos'}</p>
                 </div>
+
+                {/* Card: Vendas */}
                 <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Vendas</p>
+                    <div className="flex items-center gap-2 mb-2">
+                        <Icon name="shopping_bag" className="text-xl text-purple-600 dark:text-purple-400" />
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Vendas</p>
+                    </div>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">{totals.sales}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{totals.sales === 1 ? 'produto vendido' : 'produtos vendidos'}</p>
                 </div>
             </div>
+
+            {/* Cards Adicionais - Segunda Linha */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                {/* Card: Ticket Médio */}
+                <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Icon name="trending_up" className="text-xl text-green-600 dark:text-green-400" />
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Ticket Médio</p>
+                    </div>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totals.averageTicket)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">por transação</p>
+                </div>
+
+                {/* Card: Total a Receber (Fiado Pendente) */}
+                {totals.pendingInstallmentsCount > 0 && (
+                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl border-2 border-amber-300 dark:border-amber-700 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Icon name="schedule" className="text-xl text-amber-700 dark:text-amber-400" />
+                            <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 uppercase tracking-wide">A Receber (Fiado)</p>
+                        </div>
+                        <p className="text-2xl font-bold text-amber-900 dark:text-amber-200">{formatCurrency(totals.totalReceivable)}</p>
+                        <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                            {totals.pendingInstallmentsCount} {totals.pendingInstallmentsCount === 1 ? 'parcela pendente' : 'parcelas pendentes'}
+                        </p>
+                    </div>
+                )}
+
+                {/* Card: Recebimentos de Fiado (no período filtrado) */}
+                {totals.creditSalesCount > 0 && (
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border-2 border-green-300 dark:border-green-700 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Icon name="payments" className="text-xl text-green-700 dark:text-green-400" />
+                            <p className="text-xs font-semibold text-green-900 dark:text-green-200 uppercase tracking-wide">Recebido (Fiado)</p>
+                        </div>
+                        <p className="text-2xl font-bold text-green-900 dark:text-green-200">{formatCurrency(totals.creditSalesTotal)}</p>
+                        <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                            {totals.creditSalesCount} {totals.creditSalesCount === 1 ? 'parcela recebida' : 'parcelas recebidas'} no período
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* Card: Meta Mensal (apenas quando filtro for 'month') */}
+            {dateFilter === 'month' && (
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border-2 border-blue-300 dark:border-blue-700 p-5 mb-8 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-500 dark:bg-blue-600 rounded-lg p-2">
+                                <Icon name="flag" className="text-2xl text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 uppercase tracking-wide">Meta do Mês</p>
+                                <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+                                    {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-2xl font-bold text-blue-900 dark:text-blue-200">{formatCurrency(totals.total)}</p>
+                            <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">de {formatCurrency(monthlyGoal)}</p>
+                        </div>
+                    </div>
+                    {/* Barra de Progresso */}
+                    <div className="relative w-full h-3 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden">
+                        <div 
+                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min((totals.total / monthlyGoal) * 100, 100)}%` }}
+                        ></div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                            {((totals.total / monthlyGoal) * 100).toFixed(1)}% atingido
+                        </p>
+                        {totals.total >= monthlyGoal ? (
+                            <span className="flex items-center gap-1 text-xs font-bold text-green-600 dark:text-green-400">
+                                <Icon name="check_circle" className="text-sm" />
+                                Meta alcançada! 🎉
+                            </span>
+                        ) : (
+                            <p className="text-xs text-blue-700 dark:text-blue-300">
+                                Faltam {formatCurrency(Math.max(monthlyGoal - totals.total, 0))}
+                            </p>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Charts with Tabs */}
             <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 sm:p-6 mb-8 shadow-sm">
@@ -1782,22 +2001,33 @@ export const ReportsPage: React.FC = () => {
                 <div className="grid grid-cols-1 gap-3 sm:gap-4">
                     {sortedTransactions.map((transaction) => {
                         const isSale = transaction.category === 'vendas';
+                        const isCreditSale = isSale && transaction.service.includes('Fiado -');
                         return (
                             <div
                                 key={transaction.id}
                                 onClick={() => navigate(`/transaction/${transaction.id}`, { state: { from: 'reports' } })}
-                                className="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 p-3 sm:p-4 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                                className={`rounded-lg border p-3 sm:p-4 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] ${
+                                    isCreditSale 
+                                        ? 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-300 dark:border-amber-700'
+                                        : 'bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-800'
+                                }`}
                             >
                                 {/* Mobile Layout */}
                                 <div className="block sm:hidden">
                                     <div className="flex items-start justify-between gap-3">
                                         {/* Left side - Name, Date, Category */}
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-gray-900 dark:text-white break-words mb-0.5 flex items-center gap-1.5">
+                                            <p className="text-sm font-bold text-gray-900 dark:text-white break-words mb-0.5 flex items-center gap-1.5 flex-wrap">
                                                 {isSale ? (
                                                     <>
-                                                        <Icon name="local_mall" className="text-base" style={{ color: '#ff0000' }} />
+                                                        <Icon name="local_mall" className="text-base" style={{ color: isCreditSale ? '#f59e0b' : '#ff0000' }} />
                                                         <span>Venda de Produto</span>
+                                                        {isCreditSale && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                                                                <Icon name="credit_card" className="text-xs" />
+                                                                FIADO
+                                                            </span>
+                                                        )}
                                                     </>
                                                 ) : transaction.category === 'agendado' ? (
                                                     <>
@@ -1835,11 +2065,11 @@ export const ReportsPage: React.FC = () => {
                                 <div className="hidden sm:flex items-center justify-between gap-3">
                                     {/* Left side - Main info */}
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <p className="text-base font-bold text-gray-900 dark:text-white truncate flex items-center gap-1.5">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <p className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                                                 {isSale ? (
                                                     <>
-                                                        <Icon name="local_mall" className="text-lg" style={{ color: '#ff0000' }} />
+                                                        <Icon name="local_mall" className="text-lg" style={{ color: isCreditSale ? '#f59e0b' : '#ff0000' }} />
                                                         <span>Venda de Produto</span>
                                                     </>
                                                 ) : transaction.category === 'agendado' ? (
@@ -1854,6 +2084,12 @@ export const ReportsPage: React.FC = () => {
                                                     </>
                                                 )}
                                             </p>
+                                            {isCreditSale && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-amber-500 text-white">
+                                                    <Icon name="credit_card" className="text-sm" />
+                                                    FIADO
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                                             <span className="flex items-center gap-1">
