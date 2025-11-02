@@ -442,49 +442,102 @@ export const SalesPage: React.FC = () => {
                                     </div>
                                     <div className="space-y-3">
                                         {Array.from(selectedProducts.values()).map(({ product, quantity }) => (
-                                            <div key={product.id} className="flex items-center justify-between gap-2 text-sm bg-white dark:bg-gray-900/30 rounded-lg p-3">
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-semibold text-gray-900 dark:text-white">{product.name}</p>
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400">R$ {product.price.toFixed(2).replace('.', ',')} cada</p>
+                                            <div key={product.id} className="bg-white dark:bg-gray-900/30 rounded-lg p-3">
+                                                {/* Mobile Layout */}
+                                                <div className="flex sm:hidden flex-col gap-2">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-semibold text-sm text-gray-900 dark:text-white truncate">{product.name}</p>
+                                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">R$ {product.price.toFixed(2).replace('.', ',')} cada</p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleRemoveProduct(product.id);
+                                                            }}
+                                                            className="flex items-center justify-center size-6 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex-shrink-0"
+                                                            title="Remover produto"
+                                                        >
+                                                            <Icon name="close" className="text-sm" />
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleQuantityChange(product.id, -1);
+                                                                }}
+                                                                className="flex items-center justify-center size-8 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
+                                                                title="Diminuir quantidade"
+                                                            >
+                                                                <Icon name="remove" className="text-base" />
+                                                            </button>
+                                                            <span className="min-w-[2rem] text-center font-bold text-gray-900 dark:text-white">{quantity}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleQuantityChange(product.id, 1);
+                                                                }}
+                                                                className="flex items-center justify-center size-8 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
+                                                                title="Aumentar quantidade"
+                                                            >
+                                                                <Icon name="add" className="text-base" />
+                                                            </button>
+                                                        </div>
+                                                        <span className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                            R$ {(product.price * quantity).toFixed(2).replace('.', ',')}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleQuantityChange(product.id, -1);
-                                                        }}
-                                                        className="flex items-center justify-center size-7 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
-                                                        title="Diminuir quantidade"
-                                                    >
-                                                        <Icon name="remove" className="text-base" />
-                                                    </button>
-                                                    <span className="min-w-[2rem] text-center font-bold text-gray-900 dark:text-white">{quantity}</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleQuantityChange(product.id, 1);
-                                                        }}
-                                                        className="flex items-center justify-center size-7 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
-                                                        title="Aumentar quantidade"
-                                                    >
-                                                        <Icon name="add" className="text-base" />
-                                                    </button>
-                                                    <span className="ml-2 font-semibold text-gray-900 dark:text-white min-w-[4rem] text-right">
-                                                        R$ {(product.price * quantity).toFixed(2).replace('.', ',')}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleRemoveProduct(product.id);
-                                                        }}
-                                                        className="flex items-center justify-center size-7 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex-shrink-0 ml-1"
-                                                        title="Remover produto"
-                                                    >
-                                                        <Icon name="close" className="text-base" />
-                                                    </button>
+                                                {/* Desktop Layout */}
+                                                <div className="hidden sm:flex items-center justify-between gap-2 text-sm">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-semibold text-gray-900 dark:text-white">{product.name}</p>
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400">R$ {product.price.toFixed(2).replace('.', ',')} cada</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleQuantityChange(product.id, -1);
+                                                            }}
+                                                            className="flex items-center justify-center size-7 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
+                                                            title="Diminuir quantidade"
+                                                        >
+                                                            <Icon name="remove" className="text-base" />
+                                                        </button>
+                                                        <span className="min-w-[2rem] text-center font-bold text-gray-900 dark:text-white">{quantity}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleQuantityChange(product.id, 1);
+                                                            }}
+                                                            className="flex items-center justify-center size-7 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
+                                                            title="Aumentar quantidade"
+                                                        >
+                                                            <Icon name="add" className="text-base" />
+                                                        </button>
+                                                        <span className="ml-2 font-semibold text-gray-900 dark:text-white min-w-[4rem] text-right">
+                                                            R$ {(product.price * quantity).toFixed(2).replace('.', ',')}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleRemoveProduct(product.id);
+                                                            }}
+                                                            className="flex items-center justify-center size-7 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex-shrink-0 ml-1"
+                                                            title="Remover produto"
+                                                        >
+                                                            <Icon name="close" className="text-base" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}

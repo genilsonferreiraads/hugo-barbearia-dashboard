@@ -243,7 +243,7 @@ export const SalesListPage: React.FC = () => {
                                     {/* Left side - Products, Date */}
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold text-gray-900 dark:text-white break-words mb-1 flex items-center gap-1.5">
-                                            <Icon name="local_mall" className="text-sm" style={{ color: '#ff0000' }} />
+                                            <Icon name="local_mall" className="text-base" style={{ color: '#ff0000' }} />
                                             <span>{sale.service}</span>
                                         </p>
                                         <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 mb-1">
@@ -305,7 +305,7 @@ export const SalesListPage: React.FC = () => {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             <p className="text-base font-bold text-gray-900 dark:text-white truncate flex items-center gap-1.5">
-                                                <Icon name="local_mall" className="text-sm" style={{ color: '#ff0000' }} />
+                                                <Icon name="local_mall" className="text-lg" style={{ color: '#ff0000' }} />
                                                 <span>{sale.service}</span>
                                             </p>
                                         </div>

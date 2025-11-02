@@ -125,12 +125,12 @@ export const FinalizedServicesPage: React.FC = () => {
             })
             .map(transaction => {
                 // Categorize as scheduled or walk-in service
-                const isScheduled = transaction.clientName.includes('|');
-                return {
-                    ...transaction,
+            const isScheduled = transaction.clientName.includes('|');
+            return {
+                ...transaction,
                     type: isScheduled ? 'agendado' as const : 'avulso' as const
-                };
-            });
+            };
+        });
     }, [transactions]);
 
     // Filter by date range and type
@@ -233,8 +233,8 @@ export const FinalizedServicesPage: React.FC = () => {
                     onClick={() => setFilterType('all')}
                     className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
                         filterType === 'all'
-                            ? 'bg-blue-500 text-white shadow-md'
-                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 border border-blue-300 dark:border-blue-700'
+                            ? 'bg-primary text-white shadow-md'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
                     }`}
                 >
                     Todos
@@ -243,8 +243,8 @@ export const FinalizedServicesPage: React.FC = () => {
                     onClick={() => setFilterType('agendado')}
                     className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
                         filterType === 'agendado'
-                            ? 'bg-blue-500 text-white shadow-md'
-                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 border border-blue-300 dark:border-blue-700'
+                            ? 'bg-primary text-white shadow-md'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
                     }`}
                 >
                     Agendados
@@ -253,8 +253,8 @@ export const FinalizedServicesPage: React.FC = () => {
                     onClick={() => setFilterType('avulso')}
                     className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
                         filterType === 'avulso'
-                            ? 'bg-blue-500 text-white shadow-md'
-                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 border border-blue-300 dark:border-blue-700'
+                            ? 'bg-primary text-white shadow-md'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
                     }`}
                 >
                     Avulsos
@@ -339,12 +339,12 @@ export const FinalizedServicesPage: React.FC = () => {
                                         <p className="text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1 flex items-center gap-1.5">
                                             {transaction.type === 'agendado' ? (
                                                 <>
-                                                    <Icon name="event_available" className="text-sm flex-shrink-0" style={{ color: '#ff0000' }} />
+                                                    <Icon name="event_available" className="text-base flex-shrink-0" style={{ color: '#ff0000' }} />
                                                     <span className="truncate">{getClientName(transaction.clientName)}</span>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <Icon name="order_approve" className="text-sm flex-shrink-0" style={{ color: '#ff0000' }} />
+                                                    <Icon name="order_approve" className="text-base flex-shrink-0" style={{ color: '#ff0000' }} />
                                                     <span className="truncate">{getClientName(transaction.clientName)}</span>
                                                 </>
                                             )}
@@ -352,8 +352,8 @@ export const FinalizedServicesPage: React.FC = () => {
                                         <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 mb-0.5">
                                             <span className="material-symbols-outlined text-sm">calendar_today</span>
                                             <span>{formatDate(transaction.date)}</span>
-                                        </div>
-                                    </div>
+                                </div>
+                                </div>
 
                                     {/* Right side - Value and buttons */}
                                     <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -366,7 +366,7 @@ export const FinalizedServicesPage: React.FC = () => {
                                                     Desc: {formatCurrency(transaction.discount)}
                                                 </p>
                                             )}
-                                        </div>
+                                </div>
                                         <div className="flex gap-1">
                                             <button
                                                 onClick={(e) => {
@@ -388,7 +388,7 @@ export const FinalizedServicesPage: React.FC = () => {
                                             >
                                                 <span className="material-symbols-outlined text-base">delete</span>
                                             </button>
-                                        </div>
+                                </div>
                                     </div>
                                 </div>
                             </div>
@@ -401,12 +401,12 @@ export const FinalizedServicesPage: React.FC = () => {
                                         <p className="text-base font-bold text-gray-900 dark:text-white truncate flex items-center gap-1.5">
                                             {transaction.type === 'agendado' ? (
                                                 <>
-                                                    <Icon name="event_available" className="text-sm" style={{ color: '#ff0000' }} />
+                                                    <Icon name="event_available" className="text-lg" style={{ color: '#ff0000' }} />
                                                     <span>{getClientName(transaction.clientName)}</span>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <Icon name="order_approve" className="text-sm" style={{ color: '#ff0000' }} />
+                                                    <Icon name="order_approve" className="text-lg" style={{ color: '#ff0000' }} />
                                                     <span>{getClientName(transaction.clientName)}</span>
                                                 </>
                                             )}
@@ -416,7 +416,7 @@ export const FinalizedServicesPage: React.FC = () => {
                                         <span className="flex items-center gap-1">
                                             <span className="material-symbols-outlined text-base">calendar_today</span>
                                             {formatDate(transaction.date)}
-                                        </span>
+                                </span>
                                         <span className="hidden sm:inline">•</span>
                                         <span className="truncate">{transaction.service || '-'}</span>
                                         <span className="hidden sm:inline">•</span>
@@ -437,26 +437,26 @@ export const FinalizedServicesPage: React.FC = () => {
                                         )}
                                     </div>
                                     <div className="flex gap-1 sm:gap-2">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleEditClick(transaction);
-                                            }}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleEditClick(transaction);
+                                        }}
                                             className="flex items-center justify-center size-9 rounded-lg text-primary dark:text-white hover:bg-primary/10 dark:hover:bg-primary/20 transition-colors"
-                                            title="Editar"
-                                        >
+                                        title="Editar"
+                                    >
                                             <span className="material-symbols-outlined text-lg">edit</span>
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteClick(transaction);
-                                            }}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteClick(transaction);
+                                        }}
                                             className="flex items-center justify-center size-9 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                                            title="Deletar"
-                                        >
+                                        title="Deletar"
+                                    >
                                             <span className="material-symbols-outlined text-lg">delete</span>
-                                        </button>
+                                    </button>
                                     </div>
                                 </div>
                             </div>

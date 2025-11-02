@@ -223,29 +223,29 @@ export const ServiceRegistryPage: React.FC = () => {
         <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm inset-x-0">
             <div className="w-full px-4 sm:px-6 py-3">
                 <div className="max-w-md mx-auto">
-                    <div className="flex items-center justify-between mb-4">
-                        <button 
+                <div className="flex items-center justify-between mb-4">
+                    <button 
                             onClick={() => navigate(-1)}
                             className="flex items-center justify-center size-10 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
                             title="Voltar"
-                        >
+                    >
                             <Icon name="arrow_back" className="text-xl" />
-                        </button>
-                        
+                    </button>
+                    
                         <div className="text-center flex-1">
                             <h1 className="text-lg font-bold text-gray-900 dark:text-white">Novo Atendimento</h1>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Passo {currentStep} de 2</p>
-                        </div>
-                        
-                        <div className="w-10" />
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Passo {currentStep} de 2</p>
                     </div>
+                    
+                        <div className="w-10" />
+                </div>
 
-                    {/* Progress Bar */}
-                    <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                            className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
-                            style={{ width: `${progressPercentage}%` }}
-                        />
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                        className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
+                        style={{ width: `${progressPercentage}%` }}
+                    />
                     </div>
                 </div>
             </div>
@@ -398,7 +398,7 @@ export const ServiceRegistryPage: React.FC = () => {
                         {/* Payment Methods */}
                         <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-base font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
+                            <h3 className="text-base font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
                                 <span className="text-xs text-red-600 dark:text-red-400 font-semibold">* Obrigatório</span>
                             </div>
                             {paymentError && (
@@ -406,7 +406,7 @@ export const ServiceRegistryPage: React.FC = () => {
                                     <p className="text-sm text-red-600 dark:text-red-400">{paymentError}</p>
                                 </div>
                             )}
-
+                            
                             <div className="space-y-2.5">
                                 {payments.map((payment, index) => (
                                     <div key={payment.id} className="space-y-3">
@@ -487,15 +487,15 @@ export const ServiceRegistryPage: React.FC = () => {
                 <div className="mt-6 flex gap-3 justify-center">
                     {currentStep === 1 && (
                         <div className="max-w-md w-full">
-                            <button 
-                                type="button" 
-                                onClick={handleNextStep}
-                                disabled={!clientName.trim() || selectedServices.length === 0}
+                        <button 
+                            type="button" 
+                            onClick={handleNextStep}
+                            disabled={!clientName.trim() || selectedServices.length === 0}
                                 className="w-full px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                            >
-                                <span>Continuar</span>
-                                <Icon name="arrow_forward" className="text-base" />
-                            </button>
+                        >
+                            <span>Continuar</span>
+                            <Icon name="arrow_forward" className="text-base" />
+                        </button>
                         </div>
                     )}
                     {currentStep === 2 && (
@@ -528,7 +528,7 @@ export const ServiceRegistryPage: React.FC = () => {
                         </>
                     )}
                 </div>
-                </form>
+            </form>
             </div>
         </main>
 
