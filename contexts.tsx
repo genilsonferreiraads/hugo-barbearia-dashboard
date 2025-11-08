@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useCallback, useRef } from 'react';
-import { Service, Product, Appointment, AppointmentStatus, Transaction, CreditSale, Installment, InstallmentStatus, CreditSaleStatus, SystemSettings, Client } from './types.ts';
+import { Service, Product, Appointment, AppointmentStatus, Transaction, CreditSale, Installment, InstallmentStatus, CreditSaleStatus, SystemSettings, Client, Expense, ExpenseCategory } from './types.ts';
 import { supabase } from './services/supabaseClient.ts';
 import type { User, Session } from '@supabase/supabase-js';
 
@@ -1421,5 +1421,273 @@ export const ClientsProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }}>
             {children}
         </ClientsContext.Provider>
+    );
+};
+
+// --- DESPESAS ---
+const ExpensesContext = React.createContext<{
+    expenses: Expense[];
+    fetchExpenses: () => Promise<void>;
+    addExpense: (expense: Omit<Expense, 'id' | 'created_at'>) => Promise<void>;
+    updateExpense: (id: number, expense: Partial<Expense>) => Promise<void>;
+    deleteExpense: (id: number) => Promise<void>;
+} | undefined>(undefined);
+
+export const useExpenses = () => {
+    const context = React.useContext(ExpensesContext);
+    if (!context) {
+        throw new Error('useExpenses must be used within an ExpensesProvider');
+    }
+    return context;
+};
+
+export const ExpensesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [expenses, setExpenses] = useState<Expense[]>([]);
+
+    const fetchExpenses = useCallback(async () => {
+        const { data, error } = await supabase
+            .from('expenses')
+            .select('*')
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching expenses:', error);
+            return;
+        }
+
+        if (data) {
+            const mappedExpenses: Expense[] = data.map((item: any) => ({
+                id: item.id,
+                description: item.description,
+                amount: item.amount,
+                date: item.date,
+                category: item.category || undefined,
+                created_at: item.created_at,
+            }));
+            setExpenses(mappedExpenses);
+        } else {
+            setExpenses([]);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchExpenses();
+    }, [fetchExpenses]);
+
+    const addExpense = useCallback(async (expense: Omit<Expense, 'id' | 'created_at'>) => {
+        const { data, error } = await supabase
+            .from('expenses')
+            .insert([{
+                description: expense.description,
+                amount: expense.amount,
+                date: expense.date,
+                category: expense.category || null,
+            }])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error adding expense:', error);
+            throw error;
+        }
+
+        if (data) {
+            const newExpense: Expense = {
+                id: data.id,
+                description: data.description,
+                amount: data.amount,
+                date: data.date,
+                category: data.category || undefined,
+                created_at: data.created_at,
+            };
+            setExpenses(prev => [newExpense, ...prev]);
+        }
+    }, []);
+
+    const updateExpense = useCallback(async (id: number, expense: Partial<Expense>) => {
+        const updateData: any = {};
+        if (expense.description !== undefined) updateData.description = expense.description;
+        if (expense.amount !== undefined) updateData.amount = expense.amount;
+        if (expense.date !== undefined) updateData.date = expense.date;
+        if (expense.category !== undefined) updateData.category = expense.category || null;
+
+        const { data, error } = await supabase
+            .from('expenses')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error updating expense:', error);
+            throw error;
+        }
+
+        if (data) {
+            const updatedExpense: Expense = {
+                id: data.id,
+                description: data.description,
+                amount: data.amount,
+                date: data.date,
+                category: data.category || undefined,
+                created_at: data.created_at,
+            };
+            setExpenses(prev => prev.map(e => e.id === id ? updatedExpense : e));
+        }
+    }, []);
+
+    const deleteExpense = useCallback(async (id: number) => {
+        const { error } = await supabase
+            .from('expenses')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error deleting expense:', error);
+            throw error;
+        }
+
+        setExpenses(prev => prev.filter(e => e.id !== id));
+    }, []);
+
+    return (
+        <ExpensesContext.Provider value={{
+            expenses,
+            fetchExpenses,
+            addExpense,
+            updateExpense,
+            deleteExpense,
+        }}>
+            {children}
+        </ExpensesContext.Provider>
+    );
+};
+
+// --- CATEGORIAS DE DESPESAS ---
+const ExpenseCategoriesContext = React.createContext<{
+    categories: ExpenseCategory[];
+    fetchCategories: () => Promise<void>;
+    addCategory: (category: Omit<ExpenseCategory, 'id' | 'created_at'>) => Promise<void>;
+    updateCategory: (id: number, category: Partial<ExpenseCategory>) => Promise<void>;
+    deleteCategory: (id: number) => Promise<void>;
+} | undefined>(undefined);
+
+export const useExpenseCategories = () => {
+    const context = React.useContext(ExpenseCategoriesContext);
+    if (!context) {
+        throw new Error('useExpenseCategories must be used within an ExpenseCategoriesProvider');
+    }
+    return context;
+};
+
+export const ExpenseCategoriesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+
+    const fetchCategories = useCallback(async () => {
+        const { data, error } = await supabase
+            .from('expense_categories')
+            .select('*')
+            .order('name', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching expense categories:', error);
+            return;
+        }
+
+        if (data) {
+            const mappedCategories: ExpenseCategory[] = data.map((item: any) => ({
+                id: item.id,
+                name: item.name,
+                color: item.color || '#6b7280',
+                created_at: item.created_at,
+            }));
+            setCategories(mappedCategories);
+        } else {
+            setCategories([]);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchCategories();
+    }, [fetchCategories]);
+
+    const addCategory = useCallback(async (category: Omit<ExpenseCategory, 'id' | 'created_at'>) => {
+        const { data, error } = await supabase
+            .from('expense_categories')
+            .insert([{
+                name: category.name,
+                color: category.color || '#6b7280',
+            }])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error adding expense category:', error);
+            throw error;
+        }
+
+        if (data) {
+            const newCategory: ExpenseCategory = {
+                id: data.id,
+                name: data.name,
+                color: data.color || '#6b7280',
+                created_at: data.created_at,
+            };
+            setCategories(prev => [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name)));
+        }
+    }, []);
+
+    const updateCategory = useCallback(async (id: number, category: Partial<ExpenseCategory>) => {
+        const updateData: any = {};
+        if (category.name !== undefined) updateData.name = category.name;
+        if (category.color !== undefined) updateData.color = category.color;
+
+        const { data, error } = await supabase
+            .from('expense_categories')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error updating expense category:', error);
+            throw error;
+        }
+
+        if (data) {
+            const updatedCategory: ExpenseCategory = {
+                id: data.id,
+                name: data.name,
+                color: data.color || '#6b7280',
+                created_at: data.created_at,
+            };
+            setCategories(prev => prev.map(c => c.id === id ? updatedCategory : c).sort((a, b) => a.name.localeCompare(b.name)));
+        }
+    }, []);
+
+    const deleteCategory = useCallback(async (id: number) => {
+        const { error } = await supabase
+            .from('expense_categories')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error deleting expense category:', error);
+            throw error;
+        }
+
+        setCategories(prev => prev.filter(c => c.id !== id));
+    }, []);
+
+    return (
+        <ExpenseCategoriesContext.Provider value={{
+            categories,
+            fetchCategories,
+            addCategory,
+            updateCategory,
+            deleteCategory,
+        }}>
+            {children}
+        </ExpenseCategoriesContext.Provider>
     );
 };

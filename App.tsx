@@ -19,7 +19,9 @@ import {
   EditTransactionProvider,
   SystemSettingsProvider,
   CreditSalesProvider,
-  ClientsProvider
+  ClientsProvider,
+  ExpensesProvider,
+  ExpenseCategoriesProvider
 } from './contexts.tsx';
 import { Layout } from './components/Layout.tsx';
 import { PageTransitionWrapper } from './components/PageTransitionWrapper.tsx';
@@ -31,6 +33,7 @@ import { ReportsPage } from './components/Reports.tsx';
 import { SettingsMainPage } from './components/SettingsMain.tsx';
 import { SettingsServicesPage } from './components/SettingsServices.tsx';
 import { SettingsProductsPage } from './components/SettingsProducts.tsx';
+import { SettingsExpenseCategoriesPage } from './components/SettingsExpenseCategories.tsx';
 import { ProtectedRoute } from './components/ProtectedRoute.tsx';
 import { FinalizeAppointmentPage } from './components/FinalizeAppointmentPage.tsx';
 import { NewAppointmentPage } from './components/NewAppointmentPage.tsx';
@@ -49,6 +52,12 @@ import { ClientsPage } from './components/ClientsPage.tsx';
 import { NewClientPage } from './components/NewClientPage.tsx';
 import { EditClientPage } from './components/EditClientPage.tsx';
 import { ClientDetailPage } from './components/ClientDetailPage.tsx';
+import { FinancialPage } from './components/FinancialPage.tsx';
+import { NewExpensePage } from './components/NewExpensePage.tsx';
+import { EditExpensePage } from './components/EditExpensePage.tsx';
+import { FinancialRevenuesPage } from './components/FinancialRevenuesPage.tsx';
+import { FinancialExpensesPage } from './components/FinancialExpensesPage.tsx';
+import { FinancialBalancePage } from './components/FinancialBalancePage.tsx';
 import { Appointment } from './types.ts';
 
 // Wrapper for new appointment page
@@ -160,6 +169,8 @@ const App: React.FC = () => {
               <TransactionsProvider>
                 <CreditSalesProvider>
                   <ClientsProvider>
+                    <ExpensesProvider>
+                      <ExpenseCategoriesProvider>
                     <FinalizeAppointmentProvider>
                       <NewAppointmentProvider>
                         <EditAppointmentProvider>
@@ -182,6 +193,7 @@ const App: React.FC = () => {
                               <Route path="settings" element={<SettingsMainPage />} />
                               <Route path="settings/services" element={<SettingsServicesPage />} />
                               <Route path="settings/products" element={<SettingsProductsPage />} />
+                              <Route path="settings/expense-categories" element={<SettingsExpenseCategoriesPage />} />
                               <Route path="sales" element={<SalesListPage />} />
                               <Route path="sales/new" element={<SalesPage />} />
                               <Route path="sales/edit" element={
@@ -234,7 +246,12 @@ const App: React.FC = () => {
                               <Route path="clients/new" element={<NewClientPage />} />
                               <Route path="clients/edit/:id" element={<EditClientPage />} />
                               <Route path="clients/:id" element={<ClientDetailPage />} />
-                              <Route path="financial" element={<PlaceholderPage title="Financeiro" />} />
+                              <Route path="financial" element={<FinancialPage />} />
+                              <Route path="financial/expenses/new" element={<NewExpensePage />} />
+                              <Route path="financial/expenses/edit/:id" element={<EditExpensePage />} />
+                              <Route path="financial/revenues" element={<FinancialRevenuesPage />} />
+                              <Route path="financial/expenses-list" element={<FinancialExpensesPage />} />
+                              <Route path="financial/balance" element={<FinancialBalancePage />} />
                               <Route path="finalized-services" element={<FinalizedServicesPage />} />
                             </Route>
                             <Route path="*" element={<Navigate to="/" />} />
@@ -245,6 +262,8 @@ const App: React.FC = () => {
                         </EditAppointmentProvider>
                       </NewAppointmentProvider>
                     </FinalizeAppointmentProvider>
+                      </ExpenseCategoriesProvider>
+                    </ExpensesProvider>
                   </ClientsProvider>
                   </CreditSalesProvider>
                 </TransactionsProvider>

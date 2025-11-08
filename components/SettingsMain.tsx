@@ -66,6 +66,29 @@ export const SettingsMainPage: React.FC = () => {
           </div>
         </button>
 
+        {/* Gestão de Categorias de Despesas */}
+        <button
+          onClick={() => navigate('/settings/expense-categories')}
+          className="w-full bg-white dark:bg-card-dark rounded-xl shadow-lg border border-slate-200 dark:border-border-dark p-6 hover:shadow-xl transition-all text-left group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-primary/10 dark:bg-primary/20 group-hover:bg-primary/20 dark:group-hover:bg-primary/30 transition-colors">
+                <Icon name="category" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-text-light-primary dark:text-text-dark-primary">
+                  Categorias de Despesas
+                </h2>
+                <p className="text-sm text-text-light-secondary dark:text-text-dark-secondary mt-1">
+                  Gerencie as categorias para organizar suas despesas
+                </p>
+              </div>
+            </div>
+            <Icon name="chevron_right" />
+          </div>
+        </button>
+
         {/* Configurações do Sistema */}
         <div className="bg-white dark:bg-card-dark rounded-xl shadow-lg border border-slate-200 dark:border-border-dark">
           <div className="p-6 border-b border-slate-200 dark:border-border-dark">

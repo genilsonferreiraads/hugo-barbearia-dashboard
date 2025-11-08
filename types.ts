@@ -119,3 +119,21 @@ export interface Client {
   cpf?: string; // CPF (opcional)
   created_at?: string;
 }
+
+// --- DESPESAS ---
+export interface Expense {
+  id: number;
+  description: string; // Descrição da despesa
+  amount: number; // Valor da despesa
+  date: string; // YYYY-MM-DD - Data da despesa
+  category?: string; // Categoria da despesa (opcional)
+  created_at?: string;
+}
+
+// --- CATEGORIAS DE DESPESAS ---
+export interface ExpenseCategory {
+  id: number;
+  name: string; // Nome da categoria
+  color: string; // Cor da categoria (hexadecimal)
+  created_at?: string;
+}
