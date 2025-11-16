@@ -67,7 +67,7 @@ export const ReportsPage: React.FC = () => {
     const [filterType, setFilterType] = useState<'all' | 'vendas' | 'servicos'>('all');
     const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'year' | 'all-time' | 'custom'>(() => {
         // Se veio da dashboard com parâmetro date=today, filtra por hoje
-        return searchParams.get('date') === 'today' ? 'today' : 'year';
+        return searchParams.get('date') === 'today' ? 'today' : 'month';
     });
     const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');

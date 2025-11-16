@@ -58,7 +58,7 @@ export const SalesListPage: React.FC = () => {
 
     const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>(() => {
         // Se veio da dashboard com parâmetro date=today, filtra por hoje
-        return searchParams.get('date') === 'today' ? 'today' : 'all';
+        return searchParams.get('date') === 'today' ? 'today' : 'month';
     });
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [saleToDelete, setSaleToDelete] = useState<Transaction | null>(null);

@@ -263,12 +263,13 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
         if (error) console.error('Error fetching transactions:', error);
         else {
-            const mappedData = data?.map(({ clientname, paymentmethod, type, client_id, ...rest }) => ({
+            const mappedData = data?.map(({ clientname, paymentmethod, type, client_id, from_appointment, ...rest }) => ({
                 ...rest,
                 clientName: clientname,
                 paymentMethod: paymentmethod,
                 type: type || 'service',
                 clientId: client_id || undefined,
+                fromAppointment: from_appointment || false,
             })) || [];
             setTransactions(mappedData);
         }
@@ -310,14 +311,26 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
             newTransactionData.type = transactionData.type;
         }
         
+        // Se o transactionData tem fromAppointment, incluir na inserção
+        if ('fromAppointment' in transactionData) {
+            newTransactionData.from_appointment = transactionData.fromAppointment;
+        }
+        
         const { data, error } = await supabase.from('transactions').insert([newTransactionData]).select();
         if (error) {
             console.error('Error adding transaction:', error);
             throw error;
         }
         if(data) {
-            const { clientname, paymentmethod, type, client_id, ...rest } = data[0];
-            const mappedTransaction = { ...rest, clientName: clientname, paymentMethod: paymentmethod, type: type || 'service', clientId: client_id || undefined };
+            const { clientname, paymentmethod, type, client_id, from_appointment, ...rest } = data[0];
+            const mappedTransaction = { 
+                ...rest, 
+                clientName: clientname, 
+                paymentMethod: paymentmethod, 
+                type: type || 'service', 
+                clientId: client_id || undefined,
+                fromAppointment: from_appointment || false
+            };
             setTransactions(prev => [mappedTransaction, ...prev]);
         }
     }, []);
@@ -332,6 +345,7 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (updates.discount !== undefined) updateData.discount = updates.discount;
         if (updates.value !== undefined) updateData.value = updates.value;
         if (updates.type !== undefined) updateData.type = updates.type;
+        if (updates.fromAppointment !== undefined) updateData.from_appointment = updates.fromAppointment;
 
         const { error } = await supabase.from('transactions').update(updateData).eq('id', id);
         if (error) {

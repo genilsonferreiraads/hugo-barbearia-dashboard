@@ -162,12 +162,12 @@ export const FinancialPage: React.FC = () => {
     // Get filter label
     const getFilterLabel = (filter: DateFilter): string => {
         switch(filter) {
-            case 'day': return 'Do Dia';
-            case 'week': return 'Semanal';
-            case 'month': return 'Mensal';
-            case 'year': return 'Anual';
+            case 'day': return 'Hoje';
+            case 'week': return 'Semana';
+            case 'month': return 'Mês';
+            case 'year': return 'Ano';
             case 'all': return 'Geral';
-            default: return 'Mensal';
+            default: return 'Mês';
         }
     };
 

@@ -499,7 +499,67 @@ export const DashboardPage: React.FC = () => {
             ? todayServices.reduce((acc, tx) => acc + tx.value, 0) / servicesCompleted 
             : 0;
         
-        return { totalRevenue, servicesCompleted, salesCompleted, averageTicket };
+        // Calcular métodos de pagamento
+        const paymentMethods: { [key: string]: number } = {};
+        todayTransactions.forEach(tx => {
+            if (tx.payments && Array.isArray(tx.payments)) {
+                tx.payments.forEach(payment => {
+                    const method = payment.method || 'Não especificado';
+                    paymentMethods[method] = (paymentMethods[method] || 0) + payment.value;
+                });
+            }
+        });
+
+        // Método de pagamento mais usado
+        let mostUsedPaymentMethod = 'N/A';
+        let maxAmount = 0;
+        Object.entries(paymentMethods).forEach(([method, amount]) => {
+            if (amount > maxAmount) {
+                maxAmount = amount;
+                mostUsedPaymentMethod = method;
+            }
+        });
+        
+        return { 
+            totalRevenue, 
+            servicesCompleted, 
+            salesCompleted, 
+            averageTicket,
+            paymentMethods,
+            mostUsedPaymentMethod
+        };
+    }, [transactions]);
+
+    const weekStats = useMemo(() => {
+        const today = new Date();
+        const weekAgo = new Date(today);
+        weekAgo.setDate(today.getDate() - 7);
+        
+        const weekTransactions = transactions.filter(tx => {
+            const txDate = new Date(tx.date);
+            return txDate >= weekAgo && txDate <= today;
+        });
+        
+        const totalRevenue = weekTransactions.reduce((acc, tx) => acc + tx.value, 0);
+        const totalTransactions = weekTransactions.length;
+        
+        return { totalRevenue, totalTransactions };
+    }, [transactions]);
+
+    const monthStats = useMemo(() => {
+        const today = new Date();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+        
+        const monthTransactions = transactions.filter(tx => {
+            const txDate = new Date(tx.date);
+            return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
+        });
+        
+        const totalRevenue = monthTransactions.reduce((acc, tx) => acc + tx.value, 0);
+        const totalTransactions = monthTransactions.length;
+        
+        return { totalRevenue, totalTransactions };
     }, [transactions]);
     
     const sortedTodayAppointments = useMemo(() => {
@@ -623,10 +683,11 @@ export const DashboardPage: React.FC = () => {
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-6">
-                <div className="flex flex-col gap-4 lg:col-span-1">
+            {/* Appointments Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <div className="flex flex-col gap-4 lg:col-span-2">
                     <div className="flex items-center justify-between">
-                    <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em]">Agendamentos de Hoje</h2>
+                        <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em]">Agendamentos de Hoje</h2>
                         <button 
                             onClick={() => {
                                 const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
@@ -635,11 +696,11 @@ export const DashboardPage: React.FC = () => {
                                 setNewAppointmentData(handleSaveAppointment, getTodayLocalDate());
                                 navigate('/new-appointment');
                             }}
-                            className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-sm font-bold transition-all"
                             title="Novo Agendamento"
                         >
                             <span className="material-symbols-outlined text-base">add</span>
-                            <span className="hidden sm:inline">Novo Agendamento</span>
+                            <span className="hidden sm:inline">Novo</span>
                         </button>
                     </div>
                     <div className="flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15]">
@@ -667,42 +728,173 @@ export const DashboardPage: React.FC = () => {
                                         />
                                     ))
                             ) : (
-                                <p className="p-4 text-center text-zinc-500 dark:text-zinc-400">Nenhum agendamento para hoje.</p>
+                                <div className="flex flex-col items-center justify-center p-8 text-center">
+                                    <div className="flex size-16 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 mb-3">
+                                        <span className="material-symbols-outlined text-3xl text-zinc-400">event_busy</span>
+                                    </div>
+                                    <p className="text-zinc-600 dark:text-zinc-400 font-medium">Nenhum agendamento para hoje</p>
+                                    <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-1">Crie um novo agendamento para começar</p>
+                                </div>
                             )}
                         </div>
                     </div>
                 </div>
-                
+
+                {/* Quick Actions Sidebar */}
                 <div className="flex flex-col gap-4">
-                    <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em]">Seu Desempenho Hoje</h2>
-                    <div 
-                        className="rounded-xl border border-primary/30 bg-primary/10 dark:border-primary/50 dark:bg-[#392c28] p-4 sm:p-6 cursor-pointer hover:bg-primary/20 dark:hover:bg-primary/20 transition-colors"
-                        onClick={() => navigate('/reports?date=today')}
+                    <h2 className="text-zinc-900 dark:text-white text-lg sm:text-xl font-bold tracking-[-0.015em]">Ações Rápidas</h2>
+                    
+                    <button
+                        onClick={() => navigate('/register-service/new')}
+                        className="flex items-center gap-4 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4 text-left transition-all hover:border-primary/40 hover:shadow-lg active:scale-95"
                     >
-                        <div className="flex items-start justify-between gap-4">
-                            <div className="flex flex-col gap-1">
-                                <p className="text-xs sm:text-sm font-medium text-primary dark:text-primary">Total Recebido no Dia</p>
-                                <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-zinc-900 dark:text-white">R$ {todayStats.totalRevenue.toFixed(2).replace('.', ',')}</p>
-                            </div>
-                            <span className="material-symbols-outlined text-2xl sm:text-3xl lg:text-4xl text-primary">payments</span>
+                        <div className="flex size-12 items-center justify-center rounded-lg bg-primary/20">
+                            <span className="material-symbols-outlined text-xl text-primary">add_circle</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-zinc-900 dark:text-white text-sm">Novo Atendimento</p>
+                            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Registrar serviço avulso</p>
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/schedule')}
+                        className="flex items-center gap-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/10 dark:to-blue-900/20 border border-blue-200 dark:border-blue-800/30 p-4 text-left transition-all hover:border-blue-300 hover:shadow-lg active:scale-95"
+                    >
+                        <div className="flex size-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                            <span className="material-symbols-outlined text-xl text-blue-600 dark:text-blue-400">calendar_today</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-zinc-900 dark:text-white text-sm">Ver Agenda</p>
+                            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Gerenciar agendamentos</p>
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/sales/new')}
+                        className="flex items-center gap-4 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/10 dark:to-green-900/20 border border-green-200 dark:border-green-800/30 p-4 text-left transition-all hover:border-green-300 hover:shadow-lg active:scale-95"
+                    >
+                        <div className="flex size-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
+                            <span className="material-symbols-outlined text-xl text-green-600 dark:text-green-400">shopping_bag</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-zinc-900 dark:text-white text-sm">Vender Produto</p>
+                            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Registrar venda</p>
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/reports')}
+                        className="flex items-center gap-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/10 dark:to-purple-900/20 border border-purple-200 dark:border-purple-800/30 p-4 text-left transition-all hover:border-purple-300 hover:shadow-lg active:scale-95"
+                    >
+                        <div className="flex size-12 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                            <span className="material-symbols-outlined text-xl text-purple-600 dark:text-purple-400">bar_chart</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-zinc-900 dark:text-white text-sm">Ver Relatórios</p>
+                            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Análise completa</p>
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/financial')}
+                        className="flex items-center gap-4 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-900/10 dark:to-orange-900/20 border border-orange-200 dark:border-orange-800/30 p-4 text-left transition-all hover:border-orange-300 hover:shadow-lg active:scale-95"
+                    >
+                        <div className="flex size-12 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                            <span className="material-symbols-outlined text-xl text-orange-600 dark:text-orange-400">account_balance_wallet</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-zinc-900 dark:text-white text-sm">Financeiro</p>
+                            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Fluxo de caixa</p>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            {/* Stats Cards - Today */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <div 
+                    className="rounded-xl border-2 border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10 p-4 cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all"
+                    onClick={() => navigate('/reports?date=today')}
+                >
+                    <div className="flex items-start justify-between mb-3">
+                        <div className="flex size-10 items-center justify-center rounded-lg bg-primary/20 dark:bg-primary/30">
+                            <span className="material-symbols-outlined text-xl text-primary">payments</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Hoje</span>
+                    </div>
+                    <p className="text-2xl font-black text-zinc-900 dark:text-white mb-1">R$ {todayStats.totalRevenue.toFixed(2).replace('.', ',')}</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400">Total Recebido</p>
+                </div>
+
+                <StatCard 
+                    icon="check_circle" 
+                    value={todayStats.servicesCompleted.toString()} 
+                    label="Atendimentos Hoje"
+                    onClick={() => navigate('/register-service?from=dashboard')}
+                />
+
+                <StatCard 
+                    icon="shopping_cart" 
+                    value={todayStats.salesCompleted.toString()} 
+                    label="Vendas Hoje"
+                    onClick={() => navigate('/sales?date=today')}
+                />
+            </div>
+
+            {/* Week and Month Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div 
+                    className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-[#2a1a15] p-5 cursor-pointer hover:shadow-lg transition-all"
+                    onClick={() => navigate('/reports?date=week')}
+                >
+                    <div className="flex items-start justify-between mb-4">
+                        <div>
+                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Últimos 7 Dias</p>
+                            <p className="text-3xl font-black text-zinc-900 dark:text-white">R$ {weekStats.totalRevenue.toFixed(2).replace('.', ',')}</p>
+                        </div>
+                        <div className="flex size-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                            <span className="material-symbols-outlined text-2xl text-blue-600 dark:text-blue-400">calendar_view_week</span>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                       <StatCard 
-                           icon="check_circle" 
-                           value={todayStats.servicesCompleted.toString()} 
-                           label="Atendimentos Finalizados"
-                           onClick={() => navigate('/register-service?from=dashboard')}
-                       />
-                       <StatCard 
-                           icon="shopping_cart" 
-                           value={todayStats.salesCompleted.toString()} 
-                           label="Vendas Realizadas"
-                           onClick={() => navigate('/sales?date=today')}
-                       />
+                    <div className="flex items-center gap-2 text-sm">
+                        <span className="text-zinc-600 dark:text-zinc-400">{weekStats.totalTransactions} transações</span>
+                    </div>
+                </div>
+
+                <div 
+                    className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-[#2a1a15] p-5 cursor-pointer hover:shadow-lg transition-all"
+                    onClick={() => navigate('/reports?date=month')}
+                >
+                    <div className="flex items-start justify-between mb-4">
+                        <div>
+                            <p className="text-xs font-bold text-green-600 dark:text-green-400 uppercase tracking-wider mb-2">Este Mês</p>
+                            <p className="text-3xl font-black text-zinc-900 dark:text-white">R$ {monthStats.totalRevenue.toFixed(2).replace('.', ',')}</p>
+                        </div>
+                        <div className="flex size-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
+                            <span className="material-symbols-outlined text-2xl text-green-600 dark:text-green-400">calendar_month</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                        <span className="text-zinc-600 dark:text-zinc-400">{monthStats.totalTransactions} transações</span>
                     </div>
                 </div>
             </div>
+
+            {/* Payment Methods Breakdown */}
+            {Object.keys(todayStats.paymentMethods).length > 0 && (
+                <div className="mb-6">
+                    <h2 className="text-zinc-900 dark:text-white text-lg font-bold mb-4">Formas de Pagamento Hoje</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        {Object.entries(todayStats.paymentMethods).map(([method, amount]) => (
+                            <div key={method} className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15] p-3">
+                                <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-1 truncate">{method}</p>
+                                <p className="text-lg font-bold text-zinc-900 dark:text-white">R$ {amount.toFixed(2).replace('.', ',')}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
             
             <AppointmentOptionsModal
                 isOpen={isOptionsModalOpen}

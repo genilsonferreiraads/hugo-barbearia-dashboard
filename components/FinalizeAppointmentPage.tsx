@@ -60,9 +60,10 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
     const { clients, addClient } = useClients();
 
     const [selectedServices, setSelectedServices] = useState<Service[]>([]);
-    const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: PaymentMethod.Pix, amount: '' }]);
+    const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: '' as PaymentMethod, amount: '' }]);
     const [discount, setDiscount] = useState('');
     const [discountError, setDiscountError] = useState<string | null>(null);
+    const [paymentError, setPaymentError] = useState<string | null>(null);
     const [showAllServices, setShowAllServices] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [serviceSearchTerm, setServiceSearchTerm] = useState('');
@@ -128,7 +129,7 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
             
             const initialSubtotal = preSelected.reduce((acc, s) => acc + s.price, 0);
             
-            setPayments([{ id: Date.now(), method: PaymentMethod.Pix, amount: initialSubtotal.toFixed(2).replace('.', ',') }]);
+            setPayments([{ id: Date.now(), method: '' as PaymentMethod, amount: initialSubtotal.toFixed(2).replace('.', ',') }]);
             setDiscount('');
         }
     }, [isEditing, appointment, services, initialData]);
@@ -200,16 +201,28 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
+        setPaymentError(null);
+        
         // Validar desconto
         if (discountValue >= subtotal && subtotal > 0) {
             setDiscountError(`O desconto não pode ser igual ou maior que o subtotal (R$ ${subtotal.toFixed(2).replace('.', ',')})`);
-            alert("O desconto não pode ser igual ou maior que o subtotal.");
+            return;
+        }
+        
+        // Validar se há pelo menos um método de pagamento válido
+        const validPayments = payments.filter(p => {
+            const amount = parseFloat(p.amount.replace(',', '.')) || 0;
+            return amount > 0 && p.method && p.method !== '';
+        });
+        
+        if (validPayments.length === 0) {
+            setPaymentError("Por favor, selecione um método de pagamento válido.");
             return;
         }
         
         const totalPaid = payments.reduce((acc, p) => acc + (parseFloat(p.amount.replace(',', '.')) || 0), 0);
         if (Math.abs(totalPaid - totalValue) > 0.01) {
-            alert(`O total pago (R$ ${totalPaid.toFixed(2)}) não corresponde ao valor final (R$ ${totalValue.toFixed(2)}). Ajuste os valores.`);
+            setPaymentError(`O total pago (R$ ${totalPaid.toFixed(2)}) não corresponde ao valor final (R$ ${totalValue.toFixed(2)}). Ajuste os valores.`);
             return;
         }
 
@@ -266,6 +279,7 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                 subtotal: subtotal,
                 discount: discountValue,
                 value: totalValue,
+                fromAppointment: true, // Marcador para identificar que veio de um agendamento
             };
             
             // If not editing, add date (for new transactions)
@@ -612,10 +626,19 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
 
                                 {/* Payment Methods */}
                                 <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                                    <div className="flex items-center gap-2">
-                                        <Icon name="payment" className="text-primary text-lg" />
-                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Icon name="payment" className="text-primary text-lg" />
+                                            <h3 className="text-sm font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
+                                        </div>
+                                        <span className="text-xs text-red-600 dark:text-red-400 font-semibold">*</span>
                                     </div>
+
+                                    {paymentError && (
+                                        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                                            <p className="text-xs text-red-600 dark:text-red-400">{paymentError}</p>
+                                        </div>
+                                    )}
 
                                     <div className="space-y-3">
                                         {payments.map((payment, index) => (
@@ -629,10 +652,19 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                                                         <label className="text-xs font-semibold text-gray-900 dark:text-white block mb-1">Método</label>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setOpenPaymentMethodSheet(payment.id)}
-                                                            className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 text-xs font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800"
+                                                            onClick={() => {
+                                                                setOpenPaymentMethodSheet(payment.id);
+                                                                setPaymentError(null);
+                                                            }}
+                                                            className={`w-full h-9 rounded-lg border px-3 text-xs font-medium focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                                                                paymentError && (!payment.method || payment.method === '' || (parseFloat(payment.amount.replace(',', '.')) || 0) <= 0)
+                                                                    ? 'border-red-500 dark:border-red-500 bg-white dark:bg-gray-900 focus:border-red-500'
+                                                                    : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:border-primary'
+                                                            }`}
                                                         >
-                                                            <span>{payment.method}</span>
+                                                            <span className={payment.method ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}>
+                                                                {payment.method || 'Selecione um método...'}
+                                                            </span>
                                                             <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 text-base">
                                                                 expand_more
                                                             </span>

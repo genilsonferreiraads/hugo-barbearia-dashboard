@@ -38,7 +38,7 @@ export const FinalizedServicesPage: React.FC = () => {
     const [filterType, setFilterType] = useState<'all' | 'agendado' | 'avulso'>('all');
     const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>(() => {
         // Se veio da dashboard (parâmetro ?from=dashboard), filtra por hoje
-        return searchParams.get('from') === 'dashboard' ? 'today' : 'all';
+        return searchParams.get('from') === 'dashboard' ? 'today' : 'month';
     });
     
     // Delete confirmation state
@@ -161,7 +161,8 @@ export const FinalizedServicesPage: React.FC = () => {
             })
             .map(transaction => {
                 // Categorize as scheduled or walk-in service
-            const isScheduled = transaction.clientName.includes('|');
+                // Usar o campo fromAppointment para determinar se é agendado
+                const isScheduled = transaction.fromAppointment === true;
             return {
                 ...transaction,
                     type: isScheduled ? 'agendado' as const : 'avulso' as const

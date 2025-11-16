@@ -49,6 +49,7 @@ export interface Transaction {
   discount: number;
   type?: 'service' | 'product'; // Tipo da transação: serviço ou produto
   clientId?: number; // ID do cliente na tabela clients (null se não foi salvo na base)
+  fromAppointment?: boolean; // Indica se o atendimento veio de um agendamento
   created_at?: string;
 }
 
