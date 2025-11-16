@@ -11,6 +11,8 @@ interface ClientSearchFieldProps {
     className?: string;
     disabled?: boolean;
     onSaveNewClient?: (clientName: string) => Promise<void>; // Callback para salvar novo cliente
+    showAddButton?: boolean; // Mostrar botão "Adicionar na base" abaixo do campo
+    onValueChange?: (value: string) => void; // Callback para mudança de valor
 }
 
 const Icon = ({ name, className }: { name: string; className?: string }) => 
@@ -18,40 +20,34 @@ const Icon = ({ name, className }: { name: string; className?: string }) =>
 
 export const ClientSearchField: React.FC<ClientSearchFieldProps> = ({
     onSelectClient,
-    onValueChange,
+    onValueChange: onValueChangeProp,
     value = '',
     placeholder = 'Digite o nome do cliente',
     className = '',
     disabled = false,
-    onSaveNewClient
+    onSaveNewClient,
+    showAddButton = false
 }) => {
     const { clients } = useClients();
     const [clientName, setClientName] = useState(value);
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
 
-    // Sincronizar com value externo apenas na inicialização ou quando mudar de fora
-    // Não sobrescrever quando o usuário estiver digitando ativamente
+    // Sincronizar com value externo quando mudar
     useEffect(() => {
-        // Atualizar apenas se o value externo mudou E o nome interno está vazio OU é diferente
-        // Isso evita sobrescrever quando o usuário está digitando
-        if (value !== undefined) {
-            // Só atualizar se realmente mudou e não está sendo digitado
-            if (value !== clientName && (clientName === '' || !clientName)) {
-                setClientName(value);
-                // Tentar encontrar cliente pelo nome
-                if (value && clients && clients.length > 0) {
-                    const found = clients.find(c => 
-                        c.fullName.toLowerCase() === value.toLowerCase()
-                    );
-                    setSelectedClient(found || null);
-                } else {
-                    setSelectedClient(null);
-                }
+        if (value !== undefined && value !== clientName) {
+            setClientName(value);
+            // Tentar encontrar cliente pelo nome
+            if (value && clients && clients.length > 0) {
+                const found = clients.find(c => 
+                    c.fullName.toLowerCase() === value.toLowerCase()
+                );
+                setSelectedClient(found || null);
+            } else {
+                setSelectedClient(null);
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [value]); // Apenas value como dependência - clients e clientName são acessados dentro mas não como dependências
+    }, [value, clients, clientName]);
 
     const handleClientSelect = (client: Client | null) => {
         setSelectedClient(client);
@@ -86,8 +82,8 @@ export const ClientSearchField: React.FC<ClientSearchFieldProps> = ({
         }
         
         // Sempre notificar o componente pai sobre a mudança do nome
-        if (onValueChange) {
-            onValueChange(name);
+        if (onValueChangeProp) {
+            onValueChangeProp(name);
         }
     };
 
@@ -114,8 +110,9 @@ export const ClientSearchField: React.FC<ClientSearchFieldProps> = ({
                 className="w-full"
                 disabled={disabled}
                 onValueChange={handleValueChange}
-                onNewClient={(clientNameValue) => {
+                onNewClient={showAddButton ? undefined : (clientNameValue) => {
                     // Quando clicar em "Novo Cliente", atualizar o nome e abrir modal
+                    // Só funciona se showAddButton for false (modo antigo)
                     setClientName(clientNameValue);
                     setShowSaveModal(true);
                 }}
@@ -129,6 +126,21 @@ export const ClientSearchField: React.FC<ClientSearchFieldProps> = ({
                     {selectedClient.nickname && (
                         <span>• {selectedClient.nickname}</span>
                     )}
+                </div>
+            )}
+
+            {/* Botão para adicionar na base de clientes */}
+            {showAddButton && clientName.trim() && !selectedClient && (
+                <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>Cliente não encontrado na base</span>
+                    <button
+                        type="button"
+                        onClick={() => setShowSaveModal(true)}
+                        className="inline-flex items-center gap-1 text-primary hover:text-primary/80 font-medium transition-colors"
+                    >
+                        <Icon name="person_add" className="text-sm" />
+                        <span>Adicionar</span>
+                    </button>
                 </div>
             )}
 

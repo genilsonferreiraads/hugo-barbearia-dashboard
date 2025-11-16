@@ -100,12 +100,21 @@ export const SchedulePage: React.FC = () => {
         navigate(`/appointment/${appointment.id}`);
     };
 
-    const handleNewAppointment = () => {
+    const handleNewAppointment = (preSelectedTime?: string) => {
         const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id' | 'status' | 'created_at'>) => {
             await addAppointment(appointmentData);
         };
         setNewAppointmentData(handleSaveAppointment, selectedDate);
-        navigate('/new-appointment');
+        
+        // Navegar com parâmetros de data e hora se fornecidos
+        if (preSelectedTime) {
+            // Para hash routing, os parâmetros vêm depois do path no hash
+            const url = `/new-appointment?date=${encodeURIComponent(selectedDate)}&time=${encodeURIComponent(preSelectedTime)}`;
+            console.log('Schedule: Navigating to:', url);
+            navigate(url);
+        } else {
+            navigate('/new-appointment');
+        }
     };
 
     // Extract client name helper
@@ -315,7 +324,7 @@ export const SchedulePage: React.FC = () => {
                                     return (
                                         <button
                                             key={timeSlot}
-                                            onClick={() => appointment ? handleAppointmentClick(appointment) : handleNewAppointment()}
+                                            onClick={() => appointment ? handleAppointmentClick(appointment) : handleNewAppointment(timeSlot)}
                                             className={`w-full p-4 rounded-lg border-2 transition-all text-left min-h-appointment ${
                                                 appointment
                                                     ? `${statusStyles[appointment.status].bg} border-current hover:shadow-md hover:-translate-y-0.5 cursor-pointer`
@@ -404,7 +413,7 @@ export const SchedulePage: React.FC = () => {
                                     return (
                                         <button
                                             key={timeSlot}
-                                            onClick={() => appointment ? handleAppointmentClick(appointment) : handleNewAppointment()}
+                                            onClick={() => appointment ? handleAppointmentClick(appointment) : handleNewAppointment(timeSlot)}
                                             className={`w-full p-4 rounded-lg border-2 transition-all text-left min-h-appointment ${
                                                 appointment
                                                     ? `${statusStyles[appointment.status].bg} border-current hover:shadow-md hover:-translate-y-0.5 cursor-pointer`

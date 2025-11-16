@@ -4,6 +4,8 @@ import { useServices, useTransactions, useClients } from '../contexts.tsx';
 import { Service, PaymentMethod, Client } from '../types.ts';
 import { Toast, type ToastType } from './Toast.tsx';
 import { ClientSearchField } from './ClientSearchField.tsx';
+import { BottomSheet } from './BottomSheet.tsx';
+import { getPaymentMethodOptions } from '../constants.ts';
 
 const paymentMethodOptions = Object.values(PaymentMethod);
 
@@ -59,7 +61,6 @@ export const ServiceRegistryPage: React.FC = () => {
   const { addTransaction } = useTransactions();
   const { clients, addClient } = useClients();
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(1);
   const [clientName, setClientName] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
@@ -68,8 +69,11 @@ export const ServiceRegistryPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
   const [showAllServices, setShowAllServices] = useState(false);
   const [serviceSearchTerm, setServiceSearchTerm] = useState('');
+  const [openPaymentMethodSheet, setOpenPaymentMethodSheet] = useState<number | null>(null);
+  const [currentStep, setCurrentStep] = useState(1); // Para mobile steps
 
   const subtotal = useMemo(() => {
     return selectedServices.reduce((acc, service) => acc + service.price, 0);
@@ -162,40 +166,43 @@ export const ServiceRegistryPage: React.FC = () => {
     setPayments(newPayments);
   };
 
+  const handleDiscountChange = (value: string) => {
+    const formattedValue = formatDiscountInput(value);
+    setDiscount(formattedValue);
+    
+    // Validar se o desconto é maior ou igual ao subtotal
+    const discountNum = parseFloat(formattedValue.replace(',', '.'));
+    if (!isNaN(discountNum) && discountNum >= subtotal && subtotal > 0) {
+      setDiscountError(`O desconto não pode ser igual ou maior que o subtotal (R$ ${subtotal.toFixed(2).replace('.', ',')})`);
+    } else {
+      setDiscountError(null);
+    }
+  };
+
   const handleClear = () => {
-    setCurrentStep(1);
     setClientName('');
     setSelectedServices([]);
     setDiscount('');
     setPayments([{ id: Date.now(), method: '' as PaymentMethod, amount: '0,00' }]);
     setPaymentError(null);
+    setDiscountError(null);
     setShowAllServices(false);
-  };
-
-  const handleNextStep = () => {
-    if (currentStep === 1 && clientName.trim() && selectedServices.length > 0) {
-      setCurrentStep(2);
-    }
-  };
-
-  const handlePrevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Se estiver no passo 1, não deve submeter
-    if (currentStep === 1) {
-      return;
-    }
-    
     setPaymentError(null);
     
     if (!clientName || selectedServices.length === 0) {
       setToast({ message: "Por favor, preencha o nome do cliente e selecione ao menos um serviço.", type: 'error' });
+      return;
+    }
+    
+    // Validar desconto
+    if (discountValue >= subtotal && subtotal > 0) {
+      setDiscountError(`O desconto não pode ser igual ou maior que o subtotal (R$ ${subtotal.toFixed(2).replace('.', ',')})`);
+      setToast({ message: "O desconto não pode ser igual ou maior que o subtotal.", type: 'error' });
       return;
     }
     
@@ -254,375 +261,416 @@ export const ServiceRegistryPage: React.FC = () => {
     }
   };
 
-  const progressPercentage = (currentStep / 2) * 100;
-  
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background-light to-gray-50 dark:from-background-dark dark:to-gray-900 flex flex-col">
-        {/* Header with Progress */}
-        <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm inset-x-0">
-            <div className="w-full px-4 sm:px-6 py-3">
-                <div className="max-w-md mx-auto">
-                <div className="flex items-center justify-between mb-4">
-                    <button 
-                            onClick={() => {
-                                if (currentStep === 2) {
-                                    // Se estiver no passo 2, voltar para o passo 1
-                                    handlePrevStep();
-                                } else {
-                                    // Se estiver no passo 1, sair da página
-                                    navigate(-1);
-                                }
-                            }}
-                            className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex-shrink-0"
-                            title={currentStep === 2 ? "Voltar para passo 1" : "Voltar"}
-                    >
-                            <Icon name="arrow_back" className="text-xl" />
-                            <span className="font-medium text-sm hidden sm:inline">Voltar</span>
-                    </button>
-                    
-                        <div className="text-center flex-1">
-                            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Novo Atendimento</h1>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Passo {currentStep} de 2</p>
-                    </div>
-                    
-                        <div className="w-12 sm:w-20" />
-                </div>
+  // Detectar se é mobile
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
-                {/* Progress Bar */}
-                <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                        className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
-                        style={{ width: `${progressPercentage}%` }}
-                    />
+  const handleNextStep = () => {
+    if (!clientName.trim()) {
+      setToast({ message: "Por favor, preencha o nome do cliente.", type: 'error' });
+      return;
+    }
+    if (selectedServices.length === 0) {
+      setToast({ message: "Por favor, selecione ao menos um serviço.", type: 'error' });
+      return;
+    }
+    setCurrentStep(2);
+  };
+
+  const handlePreviousStep = () => {
+    setCurrentStep(1);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background-light to-gray-50 dark:from-background-dark dark:to-gray-900">
+        {/* Header */}
+        <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+                <div className="flex items-center gap-4">
+                    <button 
+                        onClick={() => currentStep === 2 && isMobile ? handlePreviousStep() : navigate(-1)}
+                        className="flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                    >
+                        <Icon name="arrow_back" className="text-xl" />
+                        <span className="font-medium hidden sm:inline">Voltar</span>
+                    </button>
+                    <div className="flex-1">
+                        <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Novo Atendimento</h1>
+                        {/* Mobile Steps Indicator */}
+                        <div className="md:hidden flex items-center gap-2 mt-1">
+                            <div className={`flex items-center gap-1 text-xs font-medium ${currentStep === 1 ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
+                                <span className={`w-5 h-5 rounded-full flex items-center justify-center ${currentStep === 1 ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>1</span>
+                                <span className="hidden xs:inline">Serviços</span>
+                            </div>
+                            <div className="w-8 h-0.5 bg-gray-200 dark:bg-gray-700"></div>
+                            <div className={`flex items-center gap-1 text-xs font-medium ${currentStep === 2 ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
+                                <span className={`w-5 h-5 rounded-full flex items-center justify-center ${currentStep === 2 ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>2</span>
+                                <span className="hidden xs:inline">Pagamento</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 w-full py-6">
-            <div className="max-w-2xl w-full mx-auto px-4 sm:px-6">
-            <form onSubmit={handleSubmit}>
-                {/* Step 1: Client and Services */}
-                {currentStep === 1 && (
-                    <div className="space-y-4 animate-fade-in">
-                        {/* Client Name */}
-                        <div className="max-w-md mx-auto">
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
-                            <label className="block space-y-2">
+        {/* Main Content - Two Column Layout */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column - Client & Services */}
+                <div className={`lg:col-span-2 space-y-6 ${currentStep === 2 ? 'hidden md:block' : ''}`}>
+                    {/* Client Name */}
+                    <div className="bg-white dark:bg-gray-900/50 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <label className="block space-y-3">
+                            <div className="flex items-center gap-2">
+                                <Icon name="person" className="text-primary text-xl" />
                                 <p className="text-sm font-semibold text-gray-900 dark:text-white">Nome do Cliente</p>
-                                <ClientSearchField
-                                    onSelectClient={(client) => {
-                                        setSelectedClient(client);
-                                        if (client) {
-                                            setClientName(client.fullName);
-                                        }
+                            </div>
+                            <ClientSearchField
+                                onSelectClient={(client) => {
+                                    setSelectedClient(client);
+                                    if (client) {
+                                        setClientName(client.fullName);
+                                    }
+                                }}
+                                onValueChange={(name) => {
+                                    setClientName(name);
+                                    if (!name.trim()) {
+                                        setSelectedClient(null);
+                                    }
+                                }}
+                                value={clientName}
+                                placeholder="Digite o nome do cliente"
+                                className="w-full"
+                                showAddButton={true}
+                            />
+                        </label>
+                    </div>
+
+                    {/* Services */}
+                    <div className="bg-white dark:bg-gray-900/50 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Icon name="content_cut" className="text-primary text-xl" />
+                            <div>
+                                <h3 className="text-base font-bold text-gray-900 dark:text-white">Serviços</h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {selectedServices.length} serviço{selectedServices.length !== 1 ? 's' : ''} selecionado{selectedServices.length !== 1 ? 's' : ''}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Barra de busca de serviços */}
+                        <div className="mb-4">
+                            <div className="relative">
+                                <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 text-lg" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar serviço..."
+                                    value={serviceSearchTerm}
+                                    onChange={(e) => {
+                                        setServiceSearchTerm(e.target.value);
+                                        setShowAllServices(false);
                                     }}
-                                    onValueChange={(name) => {
-                                        setClientName(name);
-                                        if (!name.trim()) {
-                                            setSelectedClient(null);
-                                        }
-                                    }}
-                                    value={clientName}
-                                    placeholder="Digite o nome do cliente"
-                                    className="w-full"
-                                    // O modal de salvar cliente será exibido automaticamente pelo ClientSearchField
-                                    // Não precisa de callback aqui, o modal cuida de tudo
+                                    className="w-full h-10 pl-10 pr-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all"
                                 />
-                            </label>
+                                {serviceSearchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setServiceSearchTerm('')}
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                    >
+                                        <Icon name="close" className="text-lg" />
+                                    </button>
+                                )}
                             </div>
                         </div>
 
-                        {/* Services */}
-                        <div className="max-w-md mx-auto">
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
-                            <div className="flex items-baseline justify-between mb-2">
-                                <div>
-                                    <h3 className="text-sm font-bold text-gray-900 dark:text-white">Serviços</h3>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                        {selectedServices.length} serviço{selectedServices.length !== 1 ? 's' : ''} selecionado{selectedServices.length !== 1 ? 's' : ''}
-                                    </p>
-                                </div>
-                                <p className="text-xl font-bold text-primary">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
-                            </div>
-
-                            {/* Barra de busca de serviços */}
-                            <div className="mb-3">
-                                <div className="relative">
-                                    <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 text-base" />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar serviço..."
-                                        value={serviceSearchTerm}
-                                        onChange={(e) => {
-                                            setServiceSearchTerm(e.target.value);
-                                            setShowAllServices(false);
-                                        }}
-                                        className="w-full h-10 pl-10 pr-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all"
-                                    />
-                                    {serviceSearchTerm && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setServiceSearchTerm('')}
-                                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                                        >
-                                            <Icon name="close" className="text-base" />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-
-                            {displayedServices.length > 0 ? (
-                                <>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {displayedServices.map(service => {
-                                            const isSelected = selectedServices.some(s => s.id === service.id);
-                                            return (
-                                                <button 
-                                                    key={service.id}
-                                                    type="button"
-                                                    onClick={() => handleServiceToggle(service)}
-                                                    className={`p-3 rounded-lg border transition-all text-left group ${
-                                                        isSelected
-                                                            ? 'bg-primary/5 border-primary/30 hover:border-primary/50'
-                                                            : 'bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-800/70'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className={`font-medium text-sm truncate ${
-                                                                isSelected
-                                                                    ? 'text-primary'
-                                                                    : 'text-gray-900 dark:text-white'
-                                                            }`}>
-                                                                {service.name}
-                                                            </p>
-                                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                                                                R$ {service.price.toFixed(2).replace('.', ',')}
-                                                            </p>
-                                                        </div>
-                                                        <div className={`w-5 h-5 rounded flex items-center justify-center transition-all flex-shrink-0 ${
+                        {displayedServices.length > 0 ? (
+                            <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {displayedServices.map(service => {
+                                        const isSelected = selectedServices.some(s => s.id === service.id);
+                                        return (
+                                            <button 
+                                                key={service.id}
+                                                type="button"
+                                                onClick={() => handleServiceToggle(service)}
+                                                className={`p-4 rounded-xl border-2 transition-all text-left group ${
+                                                    isSelected
+                                                        ? 'bg-primary/10 border-primary shadow-md'
+                                                        : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-primary/50 hover:shadow-sm'
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={`font-semibold text-sm ${
                                                             isSelected
-                                                                ? 'bg-primary'
-                                                                : 'border-2 border-gray-300 dark:border-gray-600 group-hover:border-primary/50'
+                                                                ? 'text-primary'
+                                                                : 'text-gray-900 dark:text-white'
                                                         }`}>
-                                                            {isSelected && <Icon name="check" className="text-white text-xs" />}
-                                                        </div>
+                                                            {service.name}
+                                                        </p>
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                                            R$ {service.price.toFixed(2).replace('.', ',')}
+                                                        </p>
                                                     </div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-
-                                    {sortedServices.length > 4 && (
-                                        <div className="mt-3 text-center">
-                                            {!showAllServices && (
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => setShowAllServices(true)}
-                                                    className="inline-flex items-center gap-1 text-primary hover:text-primary/80 font-medium transition-colors text-sm"
-                                                >
-                                                    <Icon name="expand_more" className="text-base" />
-                                                    <span>Exibir mais ({sortedServices.length - 4} restantes)</span>
-                                                </button>
-                                            )}
-                                            {showAllServices && (
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => setShowAllServices(false)}
-                                                    className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 font-medium transition-colors text-sm"
-                                                >
-                                                    <Icon name="expand_less" className="text-base" />
-                                                    <span>Mostrar menos</span>
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                    <Icon name="search_off" className="text-4xl mb-2 opacity-50" />
-                                    <p className="text-sm">Nenhum serviço encontrado</p>
-                                </div>
-                            )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Step 2: Payment */}
-                {currentStep === 2 && (
-                    <div className="space-y-4 animate-fade-in">
-                        {/* Total Card */}
-                        <div className="bg-gradient-to-br from-primary/15 to-primary/5 dark:from-primary/20 dark:to-primary/10 rounded-lg p-6 border border-primary/30 text-center">
-                            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Total a Pagar</p>
-                            <p className="text-4xl font-bold text-primary mb-3">R$ {totalValue.toFixed(2).replace('.', ',')}</p>
-                            <div className="flex justify-center gap-4 text-xs">
-                                <div>
-                                    <p className="text-gray-600 dark:text-gray-400">Subtotal</p>
-                                    <p className="font-bold text-gray-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
-                                </div>
-                                <div className="w-px bg-gray-300 dark:bg-gray-600" />
-                                <div>
-                                    <p className="text-gray-600 dark:text-gray-400">Desconto</p>
-                                    <p className="font-bold text-gray-900 dark:text-white">R$ {discountValue.toFixed(2).replace('.', ',')}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Discount Field */}
-                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
-                            <label className="block space-y-2">
-                                <p className="text-xs font-semibold text-gray-900 dark:text-white">Desconto (Opcional - R$)</p>
-                                <div className="relative">
-                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400 text-sm font-medium">R$</span>
-                                    <input 
-                                        type="text"
-                                        className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 pl-10 pr-3 text-sm font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all" 
-                                        placeholder="0,00"
-                                        value={discount}
-                                        onChange={(e) => setDiscount(formatDiscountInput(e.target.value))}
-                                    />
-                                </div>
-                            </label>
-                        </div>
-
-                        {/* Payment Methods */}
-                        <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
-                            <div className="flex items-center justify-between">
-                            <h3 className="text-base font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
-                                <span className="text-xs text-red-600 dark:text-red-400 font-semibold">* Obrigatório</span>
-                            </div>
-                            {paymentError && (
-                                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
-                                    <p className="text-sm text-red-600 dark:text-red-400">{paymentError}</p>
-                                </div>
-                            )}
-                            
-                            <div className="space-y-2.5">
-                                {payments.map((payment, index) => (
-                                    <div key={payment.id} className="space-y-3">
-                                        {payments.length > 1 && (
-                                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pagamento {index + 1}</p>
-                                        )}
-                                        
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-gray-900 dark:text-white block">Método</label>
-                                                <select 
-                                                    value={payment.method}
-                                                    onChange={e => {
-                                                        handlePaymentChange(payment.id, 'method', e.target.value);
-                                                        setPaymentError(null);
-                                                    }}
-                                                    required
-                                                    className={`w-full h-9 rounded-lg border px-3 text-xs font-medium text-gray-900 dark:text-white focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all ${
-                                                        paymentError && (!payment.method || (parseFloat(payment.amount.replace(',', '.')) || 0) <= 0)
-                                                            ? 'border-red-500 dark:border-red-500 bg-white dark:bg-gray-800 focus:border-red-500'
-                                                            : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:border-primary'
-                                                    }`}
-                                                >
-                                                    <option value="">Selecione um método...</option>
-                                                    {paymentMethodOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                                                </select>
-                                            </div>
-
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-gray-900 dark:text-white block">Valor</label>
-                                                <div className="relative">
-                                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="0,00"
-                                                        value={payment.amount}
-                                                        onChange={e => {
-                                                            handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value));
-                                                            setPaymentError(null);
-                                                        }}
-                                                        className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-10 pr-3 text-xs font-semibold text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
-                                                    />
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
+                                                        isSelected
+                                                            ? 'bg-primary shadow-lg'
+                                                            : 'border-2 border-gray-300 dark:border-gray-600 group-hover:border-primary/50'
+                                                    }`}>
+                                                        {isSelected && <Icon name="check" className="text-white text-sm" />}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
 
-                                        {payments.length > 1 && (
-                                            <div className="flex justify-end">
-                                                <button 
-                                                    type="button" 
-                                                    onClick={() => handleRemovePayment(payment.id)} 
-                                                    className="flex items-center gap-1 text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium transition-colors text-sm"
-                                                >
-                                                    <Icon name="delete" className="text-base" />
-                                                    <span>Remover</span>
-                                                </button>
-                                            </div>
+                                {sortedServices.length > 4 && (
+                                    <div className="mt-4 text-center">
+                                        {!showAllServices && (
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowAllServices(true)}
+                                                className="inline-flex items-center gap-1 text-primary hover:text-primary/80 font-medium transition-colors text-sm"
+                                            >
+                                                <Icon name="expand_more" className="text-lg" />
+                                                <span>Exibir mais ({sortedServices.length - 4} restantes)</span>
+                                            </button>
+                                        )}
+                                        {showAllServices && (
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowAllServices(false)}
+                                                className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 font-medium transition-colors text-sm"
+                                            >
+                                                <Icon name="expand_less" className="text-lg" />
+                                                <span>Mostrar menos</span>
+                                            </button>
                                         )}
                                     </div>
-                                ))}
-                            </div>
-
-                            {payments.length < 2 && (
-                                <button 
-                                    type="button" 
-                                    onClick={handleAddPayment} 
-                                    className="w-full py-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-primary font-semibold hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors flex items-center justify-center gap-2 text-sm"
-                                >
-                                    <Icon name="add_circle" className="text-lg" />
-                                    <span>Adicionar outra forma</span>
-                                </button>
                             )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="mt-6 flex gap-3 justify-center">
-                    {currentStep === 1 && (
-                        <div className="max-w-md w-full">
-                        <button 
-                            type="button" 
-                            onClick={handleNextStep}
-                            disabled={!clientName.trim() || selectedServices.length === 0}
-                                className="w-full px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
-                            <span>Continuar</span>
-                            <Icon name="arrow_forward" className="text-base" />
-                        </button>
+                        </>
+                    ) : (
+                        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                            <Icon name="search_off" className="text-4xl mb-2 opacity-50" />
+                            <p className="text-sm">Nenhum serviço encontrado</p>
                         </div>
                     )}
-                    {currentStep === 2 && (
-                        <>
-                            <button 
-                                type="button" 
-                                onClick={handlePrevStep}
-                                className="flex-1 sm:flex-auto px-6 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm"
-                            >
-                                <Icon name="arrow_back" className="text-base" />
-                                <span>Voltar</span>
-                            </button>
+                </div>
+
+                {/* Mobile Next Button - Step 1 */}
+                {currentStep === 1 && (
+                    <div className="md:hidden bg-white dark:bg-gray-900/50 rounded-xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <div className="flex items-center justify-between mb-3 text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">
+                                {selectedServices.length} serviço{selectedServices.length !== 1 ? 's' : ''} selecionado{selectedServices.length !== 1 ? 's' : ''}
+                            </span>
+                            <span className="font-bold text-lg text-primary">
+                                R$ {subtotal.toFixed(2).replace('.', ',')}
+                            </span>
+                        </div>
+                        <button 
+                            type="button"
+                            onClick={handleNextStep}
+                            disabled={selectedServices.length === 0 || !clientName.trim()}
+                            className="w-full py-3 rounded-xl bg-primary text-white font-bold text-base hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                        >
+                            <span>Continuar para Pagamento</span>
+                            <Icon name="arrow_forward" className="text-xl" />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+                {/* Right Column - Cart (Sticky) */}
+                <div className={`lg:col-span-1 ${currentStep === 1 ? 'hidden md:block' : ''}`}>
+                    <div className="lg:sticky lg:top-24">
+                        <div className="bg-white dark:bg-gray-900/50 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl p-6 space-y-6">
+                            {/* Cart Header with Service Count */}
+                            <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center gap-2">
+                                    <Icon name="shopping_cart" className="text-primary text-xl" />
+                                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">Pagamento</h2>
+                                </div>
+                                {selectedServices.length > 0 && (
+                                    <div className="flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full">
+                                        <Icon name="content_cut" className="text-primary text-sm" />
+                                        <span className="text-xs font-bold text-primary">{selectedServices.length}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Totals */}
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">Subtotal</span>
+                                    <span className="text-sm font-semibold text-gray-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                                </div>
+                                
+                                {/* Discount Input */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-gray-900 dark:text-white">Desconto</label>
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400 text-sm font-medium">R$</span>
+                                        <input 
+                                            type="text"
+                                            className={`w-full rounded-lg border ${discountError ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'} bg-gray-50 dark:bg-gray-900 h-10 pl-10 pr-3 text-sm font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all`}
+                                            placeholder="0,00"
+                                            value={discount}
+                                            onChange={(e) => handleDiscountChange(e.target.value)}
+                                        />
+                                    </div>
+                                    {discountError && (
+                                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                            <Icon name="error" className="text-sm" />
+                                            {discountError}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
+                                    <span className="text-base font-bold text-gray-900 dark:text-white">Total</span>
+                                    <span className="text-2xl font-black text-primary">R$ {totalValue.toFixed(2).replace('.', ',')}</span>
+                                </div>
+                            </div>
+
+                            {/* Payment Methods */}
+                            <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="payment" className="text-primary text-lg" />
+                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
+                                    </div>
+                                    <span className="text-xs text-red-600 dark:text-red-400 font-semibold">*</span>
+                                </div>
+
+                                {paymentError && (
+                                    <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                                        <p className="text-xs text-red-600 dark:text-red-400">{paymentError}</p>
+                                    </div>
+                                )}
+
+                                <div className="space-y-3">
+                                    {payments.map((payment, index) => (
+                                        <div key={payment.id} className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 space-y-2">
+                                            {payments.length > 1 && (
+                                                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pagamento {index + 1}</p>
+                                            )}
+                                            
+                                            <div className="space-y-2">
+                                                <div className="relative">
+                                                    <label className="text-xs font-semibold text-gray-900 dark:text-white block mb-1">Método</label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setOpenPaymentMethodSheet(payment.id);
+                                                            setPaymentError(null);
+                                                        }}
+                                                        className={`w-full h-9 rounded-lg border px-3 text-xs font-medium text-gray-900 dark:text-white focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                                                            paymentError && (!payment.method || (parseFloat(payment.amount.replace(',', '.')) || 0) <= 0)
+                                                                ? 'border-red-500 dark:border-red-500 bg-white dark:bg-gray-900 focus:border-red-500'
+                                                                : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:border-primary'
+                                                        }`}
+                                                    >
+                                                        <span className={payment.method ? '' : 'text-gray-400 dark:text-gray-500'}>
+                                                            {payment.method || 'Selecione um método...'}
+                                                        </span>
+                                                        <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 text-base">
+                                                            expand_more
+                                                        </span>
+                                                    </button>
+                                                    {/* Dropdown aparece aqui em desktop */}
+                                                    <BottomSheet
+                                                        key={`payment-method-${payment.id}`}
+                                                        isOpen={openPaymentMethodSheet === payment.id}
+                                                        onClose={() => setOpenPaymentMethodSheet(null)}
+                                                        title="Selecione o método de pagamento"
+                                                        options={getPaymentMethodOptions(false)}
+                                                        selectedValue={payment.method || ''}
+                                                        onSelect={(value) => {
+                                                            handlePaymentChange(payment.id, 'method', value as string);
+                                                        }}
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-xs font-semibold text-gray-900 dark:text-white block mb-1">Valor</label>
+                                                    <div className="relative">
+                                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="0,00"
+                                                            value={payment.amount}
+                                                            onChange={e => {
+                                                                handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value));
+                                                                setPaymentError(null);
+                                                            }}
+                                                            className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 pl-10 pr-3 text-xs font-semibold text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {payments.length > 1 && (
+                                                <div className="flex justify-end pt-1">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => handleRemovePayment(payment.id)} 
+                                                        className="flex items-center gap-1 text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium transition-colors text-xs"
+                                                    >
+                                                        <Icon name="delete" className="text-sm" />
+                                                        <span>Remover</span>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {payments.length < 2 && (
+                                    <button 
+                                        type="button" 
+                                        onClick={handleAddPayment} 
+                                        className="w-full py-2.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-primary font-semibold hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors flex items-center justify-center gap-2 text-xs"
+                                    >
+                                        <Icon name="add_circle" className="text-base" />
+                                        <span>Adicionar outra forma</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Confirm Button */}
                             <button 
                                 type="submit"
-                                disabled={isSubmitting}
-                                className="flex-1 sm:flex-auto px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                                disabled={isSubmitting || selectedServices.length === 0 || !clientName.trim()}
+                                className="w-full py-4 rounded-xl bg-primary text-white font-bold text-base hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:shadow-none"
                             >
                                 {isSubmitting ? (
                                     <>
-                                        <span className="animate-spin">⏳</span>
-                                        <span>Finalizando...</span>
+                                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30 border-t-white"></div>
+                                        <span>Salvando...</span>
                                     </>
                                 ) : (
                                     <>
-                                        <Icon name="check_circle" className="text-base" />
-                                        <span>Confirmar</span>
+                                        <Icon name="check_circle" className="text-xl" />
+                                        <span className="hidden lg:inline">Confirmar Atendimento</span>
+                                        <span className="lg:hidden">Confirmar</span>
                                     </>
                                 )}
                             </button>
-                        </>
-                    )}
+
+                            {/* Cancel Button */}
+                            <button 
+                                type="button" 
+                                onClick={() => navigate(-1)}
+                                className="w-full py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </form>
-            </div>
         </main>
 
         {toast && (
@@ -641,6 +689,282 @@ export const ServiceRegistryPage: React.FC = () => {
             }
             .animate-fade-in {
                 animation: fade-in 0.3s ease-out;
+            }
+            
+            /* Ajustes para telas de desktop (otimização de espaço) */
+            @media (min-width: 1280px) {
+                /* Reduzir espaçamento geral */
+                main {
+                    padding-top: 1rem !important;
+                    padding-bottom: 1rem !important;
+                }
+                
+                /* Header mais compacto */
+                header {
+                    padding-top: 0.5rem !important;
+                    padding-bottom: 0.5rem !important;
+                }
+                
+                /* Cards com menos padding */
+                .rounded-xl {
+                    padding: 0.875rem !important;
+                }
+                
+                /* Grid de serviços mais compacto */
+                .grid.grid-cols-1.sm\\:grid-cols-2 {
+                    gap: 0.5rem;
+                }
+                
+                /* Reduzir espaçamento entre sections */
+                .space-y-6 > * + * {
+                    margin-top: 1rem !important;
+                }
+                
+                /* Labels menores */
+                label .text-sm {
+                    font-size: 0.8rem !important;
+                }
+                
+                /* Inputs menores */
+                input, select, textarea {
+                    padding-top: 0.5rem !important;
+                    padding-bottom: 0.5rem !important;
+                }
+                
+                /* Botões de serviço menores */
+                .grid button {
+                    padding: 0.6rem !important;
+                }
+                
+                .grid button .text-sm {
+                    font-size: 0.75rem !important;
+                }
+                
+                /* Carrinho lateral compacto */
+                .lg\\:col-span-1 .rounded-2xl {
+                    padding: 0.75rem !important;
+                }
+                
+                .lg\\:col-span-1 h2 {
+                    font-size: 0.875rem !important;
+                    margin-bottom: 0.5rem !important;
+                }
+                
+                /* Espaçamento do carrinho */
+                .lg\\:col-span-1 .space-y-6 > * + * {
+                    margin-top: 0.625rem !important;
+                }
+                
+                .lg\\:col-span-1 .space-y-3 > * + * {
+                    margin-top: 0.375rem !important;
+                }
+                
+                .lg\\:col-span-1 .space-y-2 > * + * {
+                    margin-top: 0.25rem !important;
+                }
+                
+                /* Total valor menor */
+                .lg\\:col-span-1 .text-2xl {
+                    font-size: 1.25rem !important;
+                }
+                
+                /* Textos do carrinho menores */
+                .lg\\:col-span-1 .text-sm {
+                    font-size: 0.75rem !important;
+                }
+                
+                .lg\\:col-span-1 .text-xs {
+                    font-size: 0.7rem !important;
+                }
+                
+                .lg\\:col-span-1 label {
+                    font-size: 0.75rem !important;
+                    margin-bottom: 0.25rem !important;
+                }
+                
+                /* Inputs do carrinho menores */
+                .lg\\:col-span-1 input {
+                    height: 2rem !important;
+                    font-size: 0.75rem !important;
+                    padding: 0.375rem 0.5rem !important;
+                }
+                
+                /* Inputs com R$ precisam de padding-left maior */
+                .lg\\:col-span-1 input[type="text"] {
+                    padding-left: 2.25rem !important;
+                }
+                
+                /* Ajustar o símbolo R$ */
+                .lg\\:col-span-1 .relative > span.absolute {
+                    font-size: 0.7rem !important;
+                    left: 0.5rem !important;
+                }
+                
+                /* Botões do carrinho menores */
+                .lg\\:col-span-1 button {
+                    padding: 0.375rem 0.625rem !important;
+                    font-size: 0.75rem !important;
+                }
+                
+                .lg\\:col-span-1 button[type="submit"] {
+                    padding: 0.5rem 0.75rem !important;
+                    font-size: 0.8rem !important;
+                }
+                
+                /* Ícones menores no carrinho */
+                .lg\\:col-span-1 .material-symbols-outlined {
+                    font-size: 1.125rem !important;
+                }
+                
+                /* Cards de métodos de pagamento compactos */
+                .lg\\:col-span-1 .bg-gray-50,
+                .lg\\:col-span-1 .dark\\:bg-gray-800\\/50 {
+                    padding: 0.5rem !important;
+                }
+            }
+            
+            /* Ajustes para telas pequenas (tablets/notebooks pequenos) */
+            @media (min-width: 768px) and (max-width: 1280px) {
+                /* Reduzir padding em telas médias */
+                .lg\\:col-span-2 {
+                    padding-right: 0.5rem;
+                }
+                
+                /* Ajustar tamanho de fontes em telas pequenas */
+                h1, h2, h3 {
+                    font-size: 0.95em;
+                }
+                
+                /* Reduzir espaçamento em cards */
+                .rounded-xl {
+                    padding: 1rem !important;
+                }
+                
+                /* Grid de serviços mais compacto */
+                .grid.grid-cols-1.sm\\:grid-cols-2 {
+                    gap: 0.5rem;
+                }
+            }
+            
+            /* Específico para telas 1024x600 e similares */
+            @media (min-width: 1024px) and (max-width: 1280px) and (max-height: 700px) {
+                /* Reduzir espaçamento geral */
+                main {
+                    padding: 0.5rem 1rem !important;
+                }
+                
+                /* Header mais compacto */
+                header {
+                    padding: 0.4rem 0 !important;
+                }
+                
+                header h1 {
+                    font-size: 1rem !important;
+                }
+                
+                /* Carrinho lateral - tamanhos reduzidos */
+                .lg\\:col-span-1 .rounded-2xl {
+                    padding: 0.875rem !important;
+                }
+                
+                .lg\\:col-span-1 h2 {
+                    font-size: 0.875rem !important;
+                }
+                
+                /* Labels e textos menores */
+                .lg\\:col-span-1 label {
+                    font-size: 0.65rem !important;
+                    margin-bottom: 0.25rem !important;
+                }
+                
+                /* Inputs e botões menores */
+                .lg\\:col-span-1 input[type="text"] {
+                    height: 1.75rem !important;
+                    font-size: 0.7rem !important;
+                    padding-left: 2rem !important;
+                    padding-right: 0.5rem !important;
+                }
+                
+                .lg\\:col-span-1 button[type="button"]:not([type="submit"]) {
+                    height: 1.75rem !important;
+                    font-size: 0.7rem !important;
+                    padding: 0.25rem 0.5rem !important;
+                }
+                
+                /* Ajustar posição e tamanho do símbolo R$ */
+                .lg\\:col-span-1 .relative > span {
+                    font-size: 0.6rem !important;
+                }
+                
+                /* Garantir que o R$ não sobreponha */
+                .lg\\:col-span-1 input[type="text"]::placeholder {
+                    padding-left: 0 !important;
+                }
+                
+                /* Total menor */
+                .lg\\:col-span-1 .text-2xl {
+                    font-size: 1.25rem !important;
+                }
+                
+                .lg\\:col-span-1 .text-sm {
+                    font-size: 0.7rem !important;
+                }
+                
+                .lg\\:col-span-1 .text-xs {
+                    font-size: 0.65rem !important;
+                }
+                
+                .lg\\:col-span-1 .text-base {
+                    font-size: 0.8rem !important;
+                }
+                
+                /* Espaçamentos reduzidos */
+                .lg\\:col-span-1 .space-y-6 > * + * {
+                    margin-top: 0.75rem !important;
+                }
+                
+                .lg\\:col-span-1 .space-y-3 > * + * {
+                    margin-top: 0.4rem !important;
+                }
+                
+                .lg\\:col-span-1 .space-y-2 > * + * {
+                    margin-top: 0.3rem !important;
+                }
+                
+                /* Botão de confirmar menor */
+                .lg\\:col-span-1 button[type="submit"] {
+                    padding: 0.5rem 0.75rem !important;
+                    font-size: 0.75rem !important;
+                }
+                
+                .lg\\:col-span-1 button[type="submit"] span {
+                    white-space: nowrap !important;
+                }
+                
+                .lg\\:col-span-1 button[type="submit"] + button {
+                    padding: 0.5rem !important;
+                    font-size: 0.75rem !important;
+                }
+                
+                /* Cards de pagamento mais compactos */
+                .lg\\:col-span-1 .bg-gray-50,
+                .lg\\:col-span-1 .bg-gray-800\\/50 {
+                    padding: 0.5rem !important;
+                }
+                
+                /* Ícones menores */
+                .lg\\:col-span-1 .material-symbols-outlined {
+                    font-size: 1rem !important;
+                }
+                
+                /* Serviços - cards menores */
+                .lg\\:col-span-2 .grid button {
+                    padding: 0.6rem !important;
+                }
+                
+                .lg\\:col-span-2 .text-sm {
+                    font-size: 0.75rem !important;
+                }
             }
         `}</style>
     </div>

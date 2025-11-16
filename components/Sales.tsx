@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useProducts, useTransactions, useEditTransaction, useSystemSettings, useCreditSales, useClients } from '../contexts.tsx';
 import { Product, PaymentMethod, Transaction, Client } from '../types.ts';
 import { ClientSearchField } from './ClientSearchField.tsx';
+import { BottomSheet } from './BottomSheet.tsx';
+import { getPaymentMethodOptions } from '../constants.ts';
 
 const paymentMethodOptions = Object.values(PaymentMethod).filter(m => m !== PaymentMethod.Credit); // Remover Fiado da lista normal
 
@@ -57,6 +59,7 @@ export const SalesPage: React.FC = () => {
     const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: '' as PaymentMethod | '', amount: '' }]);
     const [discount, setDiscount] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [openPaymentMethodSheet, setOpenPaymentMethodSheet] = useState<number | null>(null);
     
     // Estados para venda avulso
     const [avulsoClientName, setAvulsoClientName] = useState('');
@@ -847,15 +850,18 @@ export const SalesPage: React.FC = () => {
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 <div className="space-y-1.5">
                                                     <label className="text-xs font-semibold text-gray-900 dark:text-white block">Método</label>
-                                                    <select 
-                                                        value={payment.method || ''}
-                                                        onChange={e => handlePaymentChange(payment.id, 'method', e.target.value)}
-                                                        className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
-                                                        required
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOpenPaymentMethodSheet(payment.id)}
+                                                        className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
                                                     >
-                                                        <option value="">Selecione...</option>
-                                                        {paymentMethodOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                                                    </select>
+                                                        <span className={payment.method ? '' : 'text-gray-400 dark:text-gray-500'}>
+                                                            {payment.method || 'Selecione...'}
+                                                        </span>
+                                                        <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 text-base">
+                                                            expand_more
+                                                        </span>
+                                                    </button>
                                                 </div>
 
                                                 <div className="space-y-1.5">
@@ -1077,6 +1083,21 @@ export const SalesPage: React.FC = () => {
                     animation: fade-in 0.3s ease-out;
                 }
             `}</style>
+
+            {/* Payment Method Bottom Sheets */}
+            {payments.map((payment) => (
+                <BottomSheet
+                    key={`payment-method-${payment.id}`}
+                    isOpen={openPaymentMethodSheet === payment.id}
+                    onClose={() => setOpenPaymentMethodSheet(null)}
+                    title="Selecione o método de pagamento"
+                    options={getPaymentMethodOptions(true)}
+                    selectedValue={payment.method || ''}
+                    onSelect={(value) => {
+                        handlePaymentChange(payment.id, 'method', value as string);
+                    }}
+                />
+            ))}
         </div>
     );
 };

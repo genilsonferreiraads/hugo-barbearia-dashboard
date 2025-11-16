@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCreditSales } from '../contexts.tsx';
 import { InstallmentStatus, PaymentMethod } from '../types.ts';
 import { Toast, ToastType } from './Toast.tsx';
+import { BottomSheet } from './BottomSheet.tsx';
+import { getPaymentMethodOptions } from '../constants.ts';
 
 const Icon = ({ name, className, style }: { name: string; className?: string; style?: React.CSSProperties }) => 
     <span className={`material-symbols-outlined ${className || ''}`} style={style}>{name}</span>;
@@ -25,29 +27,11 @@ export const RegisterPaymentPage: React.FC = () => {
     });
     const [isPaying, setIsPaying] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-    const [isPaymentMethodOpen, setIsPaymentMethodOpen] = useState(false);
-    const paymentMethodRef = useRef<HTMLDivElement>(null);
+    const [isPaymentMethodSheetOpen, setIsPaymentMethodSheetOpen] = useState(false);
 
     useEffect(() => {
         fetchCreditSales();
     }, [fetchCreditSales]);
-
-    // Fechar dropdown quando clicar fora
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (paymentMethodRef.current && !paymentMethodRef.current.contains(event.target as Node)) {
-                setIsPaymentMethodOpen(false);
-            }
-        };
-
-        if (isPaymentMethodOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [isPaymentMethodOpen]);
 
     // Definir sale e installment antes de usar nos useEffects
     const sale = creditSales.find(s => s.id === Number(creditSaleId));
@@ -203,51 +187,18 @@ export const RegisterPaymentPage: React.FC = () => {
                         <label className="text-sm font-semibold text-gray-900 dark:text-white block">
                             Método de Pagamento <span className="text-red-500">*</span>
                         </label>
-                        <div className="relative w-full" ref={paymentMethodRef}>
-                            <button
-                                type="button"
-                                onClick={() => setIsPaymentMethodOpen(!isPaymentMethodOpen)}
-                                className={`w-full h-12 rounded-lg border ${
-                                    paymentMethod 
-                                        ? 'border-gray-300 dark:border-gray-700' 
-                                        : 'border-gray-300 dark:border-gray-700'
-                                } bg-white dark:bg-gray-800 px-4 text-left text-base font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all flex items-center justify-between ${
-                                    !paymentMethod ? 'text-gray-500 dark:text-gray-400' : ''
-                                }`}
-                            >
-                                <span className="truncate pr-2">
-                                    {paymentMethod || 'Selecione o método de pagamento...'}
-                                </span>
-                                <Icon 
-                                    name={isPaymentMethodOpen ? "arrow_drop_up" : "arrow_drop_down"} 
-                                    className="text-gray-400 dark:text-gray-500 text-2xl flex-shrink-0" 
-                                />
-                            </button>
-                            
-                            {isPaymentMethodOpen && (
-                                <div className="absolute z-50 top-full left-0 right-0 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                    {Object.values(PaymentMethod)
-                                        .filter(m => m !== PaymentMethod.Credit)
-                                        .map(method => (
-                                            <button
-                                                key={method}
-                                                type="button"
-                                                onClick={() => {
-                                                    setPaymentMethod(method);
-                                                    setIsPaymentMethodOpen(false);
-                                                }}
-                                                className={`w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                                                    paymentMethod === method 
-                                                        ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary' 
-                                                        : 'text-gray-900 dark:text-white'
-                                                } first:rounded-t-lg last:rounded-b-lg`}
-                                            >
-                                                {method}
-                                            </button>
-                                        ))}
-                                </div>
-                            )}
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsPaymentMethodSheetOpen(true)}
+                            className="w-full h-12 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 text-left text-base font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                            <span className={paymentMethod ? '' : 'text-gray-500 dark:text-gray-400'}>
+                                {paymentMethod || 'Selecione o método de pagamento...'}
+                            </span>
+                            <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 text-2xl flex-shrink-0">
+                                expand_more
+                            </span>
+                        </button>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Escolha como o cliente realizou o pagamento</p>
                     </div>
 
@@ -304,6 +255,18 @@ export const RegisterPaymentPage: React.FC = () => {
                     onClose={() => setToast(null)}
                 />
             )}
+
+            {/* Payment Method Bottom Sheet */}
+            <BottomSheet
+                isOpen={isPaymentMethodSheetOpen}
+                onClose={() => setIsPaymentMethodSheetOpen(false)}
+                title="Selecione o método de pagamento"
+                options={getPaymentMethodOptions(true)}
+                selectedValue={paymentMethod}
+                onSelect={(value) => {
+                    setPaymentMethod(value as string);
+                }}
+            />
         </div>
     );
 };

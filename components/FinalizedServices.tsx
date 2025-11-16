@@ -234,7 +234,7 @@ export const FinalizedServicesPage: React.FC = () => {
                 return 'Total Mês';
             case 'all':
             default:
-                return 'Total Todo Tempo';
+                return 'Total Geral';
         }
     };
 
@@ -337,7 +337,7 @@ export const FinalizedServicesPage: React.FC = () => {
                             : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
                     }`}
                 >
-                    Tudo
+                    Geral
                 </button>
             </div>
 

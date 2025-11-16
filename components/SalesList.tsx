@@ -120,7 +120,7 @@ export const SalesListPage: React.FC = () => {
                 return 'Total Mês';
             case 'all':
             default:
-                return 'Total Todo Tempo';
+                return 'Total Geral';
         }
     };
 
@@ -222,7 +222,7 @@ export const SalesListPage: React.FC = () => {
                             : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
                     }`}
                 >
-                    Todo Tempo
+                    Geral
                 </button>
             </div>
 
@@ -238,7 +238,10 @@ export const SalesListPage: React.FC = () => {
                     {/* Mobile Layout */}
                     {sortedSales.map((sale) => (
                         <div key={sale.id} className="block sm:hidden">
-                            <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
+                            <div 
+                                onClick={() => navigate(`/transaction/${sale.id}`)}
+                                className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm cursor-pointer hover:shadow-md transition-all"
+                            >
                                 <div className="flex items-start justify-between gap-3">
                                     {/* Left side - Products, Date */}
                                     <div className="flex-1 min-w-0">
@@ -272,16 +275,6 @@ export const SalesListPage: React.FC = () => {
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    navigate(`/transaction/${sale.id}`);
-                                                }}
-                                                className="flex items-center justify-center size-7 rounded-lg text-primary hover:bg-primary/10 transition-colors"
-                                                title="Ver detalhes"
-                                            >
-                                                <Icon name="visibility" className="text-base" />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
                                                     handleDeleteClick(sale);
                                                 }}
                                                 className="flex items-center justify-center size-7 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
@@ -299,7 +292,10 @@ export const SalesListPage: React.FC = () => {
                     {/* Desktop Layout */}
                     {sortedSales.map((sale) => (
                         <div key={sale.id} className="hidden sm:block">
-                            <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div 
+                                onClick={() => navigate(`/transaction/${sale.id}`)}
+                                className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                            >
                                 <div className="flex items-center justify-between gap-4">
                                     {/* Left side - Main info */}
                                     <div className="flex-1 min-w-0">
@@ -335,16 +331,6 @@ export const SalesListPage: React.FC = () => {
                                             )}
                                         </div>
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    navigate(`/transaction/${sale.id}`);
-                                                }}
-                                                className="flex items-center justify-center size-9 rounded-lg bg-primary/10 dark:bg-primary/20 text-primary hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors"
-                                                title="Ver detalhes"
-                                            >
-                                                <Icon name="visibility" className="text-lg" />
-                                            </button>
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();

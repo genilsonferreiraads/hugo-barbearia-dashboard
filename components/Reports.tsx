@@ -71,7 +71,6 @@ export const ReportsPage: React.FC = () => {
     });
     const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
     const [monthlyGoal, setMonthlyGoal] = useState(10000); // Meta mensal padrão R$ 10.000
@@ -317,7 +316,7 @@ export const ReportsPage: React.FC = () => {
                 return 'Total Ano';
             case 'all-time':
             default:
-                return 'Total Todo Tempo';
+                return 'Total Geral';
         }
     };
 
@@ -333,7 +332,7 @@ export const ReportsPage: React.FC = () => {
                 return 'Desempenho Anual';
             case 'all-time':
             default:
-                return 'Desempenho Todo Tempo';
+                return 'Desempenho Geral';
         }
     };
 
@@ -1188,43 +1187,6 @@ export const ReportsPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* Advanced Filters (Payment Method only) */}
-            {showAdvancedFilters && (
-                <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 animate-fade-in">
-                    {/* Payment Method Filter */}
-                    <div>
-                        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                            Método de Pagamento
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => setPaymentFilter('all')}
-                                className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-                                    paymentFilter === 'all'
-                                        ? 'bg-primary text-white shadow-md'
-                                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
-                                }`}
-                            >
-                                Todos Pagamentos
-                            </button>
-                            {Object.values(PaymentMethod).map((method) => (
-                                <button
-                                    key={method}
-                                    onClick={() => setPaymentFilter(method)}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-                                        paymentFilter === method
-                                            ? 'bg-primary text-white shadow-md'
-                                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
-                                    }`}
-                                >
-                                    {method}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Date Filter Buttons */}
             <div className="flex flex-wrap items-center gap-2 mb-6">
                 <button
@@ -1275,7 +1237,7 @@ export const ReportsPage: React.FC = () => {
                             : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
                     }`}
                 >
-                    Todo Tempo
+                    Geral
                 </button>
                 <button
                     onClick={() => setDateFilter('custom')}
@@ -1288,25 +1250,6 @@ export const ReportsPage: React.FC = () => {
                     <Icon name="date_range" className="text-base" />
                     <span className="hidden sm:inline">Período</span>
                     <span className="sm:hidden">Data</span>
-                </button>
-                
-                {/* Advanced Filters Toggle */}
-                <button
-                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                    className={`px-3 py-2 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
-                        showAdvancedFilters || paymentFilter !== 'all'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
-                    }`}
-                >
-                    <Icon name={showAdvancedFilters ? "expand_less" : "expand_more"} className="text-base" />
-                    <span className="hidden sm:inline">Filtros Avançados</span>
-                    <span className="sm:hidden">Mais</span>
-                    {paymentFilter !== 'all' && (
-                        <span className="ml-1 px-1.5 py-0.5 bg-white/30 dark:bg-black/30 rounded-full text-xs">
-                            1
-                        </span>
-                    )}
                 </button>
             </div>
 

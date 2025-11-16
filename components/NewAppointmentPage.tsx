@@ -59,16 +59,48 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
     const navigate = useNavigate();
     const { appointments } = useAppointments();
     const { clients } = useClients();
+    
     const [step, setStep] = useState(1);
     const [clientName, setClientName] = useState('');
     const [whatsapp, setWhatsapp] = useState('');
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-    const [date, setDate] = useState(initialDate || getTodayLocalDate());
-    const [time, setTime] = useState('');
+    const [date, setDate] = useState(() => {
+        // Para hash routing, os parâmetros vêm no hash
+        const hashParts = window.location.hash.split('?');
+        const queryString = hashParts.length > 1 ? hashParts[1] : '';
+        const params = new URLSearchParams(queryString);
+        return params.get('date') || initialDate || getTodayLocalDate();
+    });
+    const [time, setTime] = useState(() => {
+        // Para hash routing, os parâmetros vêm no hash
+        const hashParts = window.location.hash.split('?');
+        const queryString = hashParts.length > 1 ? hashParts[1] : '';
+        const params = new URLSearchParams(queryString);
+        return params.get('time') || '';
+    });
     const [errorMessage, setErrorMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [newAppointmentData, setNewAppointmentData] = useState<{ clientName: string; date: string; time: string } | null>(null);
     const whatsappInputRef = React.useRef<HTMLInputElement>(null);
+
+    // Debug: verificar valores iniciais
+    useEffect(() => {
+        console.log('Component mounted with:', { date, time });
+        const hashParts = window.location.hash.split('?');
+        const queryString = hashParts.length > 1 ? hashParts[1] : '';
+        const params = new URLSearchParams(queryString);
+        console.log('URL params:', { 
+            date: params.get('date'), 
+            time: params.get('time'),
+            fullHash: window.location.hash,
+            queryString
+        });
+    }, [date, time]);
+
+    // Debug: rastrear mudanças no time
+    useEffect(() => {
+        console.log('Time changed to:', time);
+    }, [time]);
 
     // Wait for appointments to update and show the receipt modal
     useEffect(() => {
@@ -184,52 +216,61 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
 
     const progressPercentage = (step / 2) * 100;
 
+    // Detectar se é mobile
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-background-light to-gray-50 dark:from-background-dark dark:to-gray-900 flex flex-col">
             {/* Header with Back Button and Progress */}
             <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm">
-                <div className="max-w-md mx-auto px-4 sm:px-6 py-3">
-                    <div className="flex items-start gap-2 sm:gap-4 mb-3 sm:mb-4">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+                    <div className="flex items-center gap-4">
                         <button 
                             onClick={() => navigate(-1)}
-                            className="flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-xs sm:text-sm shrink-0 mt-0.5"
+                            className="flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
                         >
-                            <Icon name="arrow_back" className="text-lg" />
+                            <Icon name="arrow_back" className="text-xl" />
                             <span className="font-medium hidden sm:inline">Voltar</span>
                         </button>
                         
-                        <div className="text-center flex-1">
-                            <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white leading-tight">Novo Agendamento</h1>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Passo {step} de 2</p>
+                        <div className="flex-1">
+                            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Novo Agendamento</h1>
+                            {/* Mobile Steps Indicator */}
+                            <div className="md:hidden flex items-center gap-2 mt-1">
+                                <div className={`flex items-center gap-1 text-xs font-medium ${step === 1 ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
+                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step === 1 ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>1</span>
+                                    <span className="hidden xs:inline">Cliente</span>
+                                </div>
+                                <div className="w-8 h-0.5 bg-gray-200 dark:bg-gray-700"></div>
+                                <div className={`flex items-center gap-1 text-xs font-medium ${step === 2 ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
+                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step === 2 ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>2</span>
+                                    <span className="hidden xs:inline">Agendamento</span>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <div className="w-10 sm:w-16" />
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                            className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
-                            style={{ width: `${progressPercentage}%` }}
-                        />
                     </div>
                 </div>
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 max-w-md w-full mx-auto px-4 sm:px-6 py-6">
-                <form onSubmit={handleSubmit}>
-                    {/* Step 1: Client Information */}
-                    {step === 1 && (
-                        <div className="space-y-4 animate-fade-in">
-                            {errorMessage && (
-                                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
-                                    <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
-                                </div>
-                            )}
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Coluna Esquerda - Informações do Cliente (Desktop sempre visível, Mobile Step 1) */}
+                    <div className={`lg:col-span-2 ${step === 2 && isMobile ? 'hidden' : ''}`}>
+                        {errorMessage && (
+                            <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 mb-4">
+                                <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+                            </div>
+                        )}
 
-                            {/* Client Name */}
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
+                        {/* Client Information Card */}
+                        <div className="bg-white dark:bg-gray-900/50 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="person" className="text-primary text-xl" />
+                                <h2 className="text-base font-bold text-gray-900 dark:text-white">Informações do Cliente</h2>
+                            </div>
+                            
+                            <div className="space-y-4">
                                 <label className="block space-y-2">
                                     <p className="text-sm font-semibold text-gray-900 dark:text-white">Nome do Cliente</p>
                                     <ClientSearchField
@@ -238,34 +279,19 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                             if (client) {
                                                 setClientName(client.fullName);
                                                 setWhatsapp(client.whatsapp);
-                                            } else {
-                                                // Não limpar clientName aqui - permitir que o usuário continue com o nome digitado
-                                                // setClientName('');
-                                                // setWhatsapp('');
                                             }
                                         }}
                                         onValueChange={(name) => {
-                                            // SEMPRE atualizar clientName quando o valor muda
                                             setClientName(name);
-                                            // Se limpar o campo, limpar seleção e WhatsApp
                                             if (!name.trim()) {
                                                 setSelectedClient(null);
                                                 setWhatsapp('');
-                                            } else {
-                                                // Se está digitando um nome novo, manter o nome mas limpar seleção
-                                                // Isso permite que o usuário continue sem salvar o cliente
-                                                const found = clients.find(c => 
-                                                    c.fullName.toLowerCase() === name.toLowerCase()
-                                                );
-                                                if (!found) {
-                                                    setSelectedClient(null);
-                                                    // Não limpar whatsapp aqui - deixar o usuário preencher se quiser
-                                                }
                                             }
                                         }}
                                         value={clientName}
                                         placeholder="Digite o nome do cliente"
                                         className="w-full"
+                                        showAddButton={true}
                                     />
                                 </label>
 
@@ -280,38 +306,63 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                         placeholder="(87) 9 9155-6444"
                                         value={whatsapp}
                                         onChange={handleWhatsAppChange}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                if (clientName.trim()) {
-                                                    handleNextStep();
-                                                }
-                                            }
-                                        }}
                                     />
                                 </label>
                             </div>
                         </div>
-                    )}
 
-                    {/* Step 2: Date and Time */}
-                    {step === 2 && (
-                        <div className="space-y-4 animate-fade-in">
-                            {errorMessage && (
-                                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
-                                    <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+                        {/* Mobile Continue Button */}
+                        {isMobile && step === 1 && (
+                            <div className="mt-6 flex gap-3">
+                                <button 
+                                    type="button" 
+                                    onClick={() => navigate(-1)}
+                                    className="flex-1 px-6 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={handleNextStep}
+                                    disabled={!clientName || !clientName.trim()}
+                                    className="flex-1 px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                                >
+                                    <span>Continuar</span>
+                                    <Icon name="arrow_forward" className="text-base" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Coluna Direita - Data e Horários (Desktop sempre visível, Mobile Step 2) */}
+                    <div className={`lg:col-span-1 ${step === 1 && isMobile ? 'hidden' : ''}`}>
+                        <div className="sticky top-24 bg-white dark:bg-gray-900/50 rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-lg space-y-5">
+                            {/* Header */}
+                            <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-800">
+                                <div className="flex items-center gap-2">
+                                    <Icon name="event" className="text-primary text-xl" />
+                                    <h2 className="text-base font-bold text-gray-900 dark:text-white">Agendamento</h2>
                                 </div>
-                            )}
+                                {time && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                                        <Icon name="check_circle" className="text-sm" />
+                                        Selecionado
+                                    </span>
+                                )}
+                            </div>
 
-                            {/* Date */}
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                            {/* Date Selection */}
+                            <div className="space-y-3">
                                 <label className="block space-y-2">
-                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Data</p>
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="calendar_today" className="text-gray-400 text-base" />
+                                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Data do Agendamento</p>
+                                    </div>
                                     <input 
                                         type="date"
                                         required
                                         min={getTodayLocalDate()}
-                                        className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                        className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 text-sm font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all"
                                         value={date}
                                         onChange={(e) => {
                                             setDate(e.target.value);
@@ -322,9 +373,12 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                             </div>
 
                             {/* Available Times */}
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-2.5">
-                                <p className="text-sm font-semibold text-gray-900 dark:text-white">Horários Disponíveis</p>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <Icon name="schedule" className="text-gray-400 text-base" />
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Horários Disponíveis</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
                                     {AVAILABLE_TIMES.map((availableTime) => {
                                         const isPast = isTimeInPast(date, availableTime);
                                         const isBooked = !isTimeSlotAvailable(date, availableTime);
@@ -361,45 +415,29 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                     })}
                                 </div>
                             </div>
-                        </div>
-                    )}
 
-                    {/* Action Buttons */}
-                    <div className="mt-6 flex gap-3 sm:justify-end flex-wrap sm:flex-nowrap">
-                        {step === 1 && (
-                            <>
-                                <button 
-                                    type="button" 
-                                    onClick={() => navigate(-1)}
-                                    className="flex-1 sm:flex-auto px-6 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
-                                >
-                                    Cancelar
-                                </button>
-                                <button 
-                                    type="button" 
-                                    onClick={handleNextStep}
-                                    disabled={!clientName || !clientName.trim()}
-                                    className="flex-1 sm:flex-auto px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                                >
-                                    <span>Continuar</span>
-                                    <Icon name="arrow_forward" className="text-base" />
-                                </button>
-                            </>
-                        )}
-                        {step === 2 && (
-                            <>
-                                <button 
-                                    type="button" 
-                                    onClick={handlePrevStep}
-                                    className="flex-1 sm:flex-auto px-6 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm"
-                                >
-                                    <Icon name="arrow_back" className="text-base" />
-                                    <span>Voltar</span>
-                                </button>
+                            {/* Summary and Confirm Button (Desktop) */}
+                            <div className="hidden lg:block pt-5 border-t border-gray-200 dark:border-gray-800 space-y-4">
+                                {/* Selected Info Summary */}
+                                {clientName && (
+                                    <div className="space-y-2 text-xs">
+                                        <div className="flex items-center justify-between text-gray-600 dark:text-gray-400">
+                                            <span>Cliente:</span>
+                                            <span className="font-medium text-gray-900 dark:text-white truncate ml-2">{clientName}</span>
+                                        </div>
+                                        {time && (
+                                            <div className="flex items-center justify-between text-gray-600 dark:text-gray-400">
+                                                <span>Horário:</span>
+                                                <span className="font-medium text-gray-900 dark:text-white">{time}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 <button 
                                     type="submit"
-                                    disabled={isSubmitting || !time}
-                                    className="flex-1 sm:flex-auto px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                                    disabled={isSubmitting || !clientName.trim() || !time}
+                                    className="w-full h-11 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary/20"
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -408,13 +446,44 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                         </>
                                     ) : (
                                         <>
-                                            <Icon name="check_circle" className="text-base" />
-                                            <span>Confirmar</span>
+                                            <Icon name="check_circle" className="text-lg" />
+                                            <span>Confirmar Agendamento</span>
                                         </>
                                     )}
                                 </button>
-                            </>
-                        )}
+                            </div>
+
+                            {/* Mobile Action Buttons (Step 2) */}
+                            {isMobile && step === 2 && (
+                                <div className="pt-5 border-t border-gray-200 dark:border-gray-800 flex gap-3">
+                                    <button 
+                                        type="button" 
+                                        onClick={handlePrevStep}
+                                        className="flex-1 px-6 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm"
+                                    >
+                                        <Icon name="arrow_back" className="text-base" />
+                                        <span>Voltar</span>
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        disabled={isSubmitting || !time}
+                                        className="flex-1 px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <span className="animate-spin">⏳</span>
+                                                <span>Agendando...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Icon name="check_circle" className="text-base" />
+                                                <span>Confirmar</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </form>
             </main>
@@ -426,6 +495,76 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                 }
                 .animate-fade-in {
                     animation: fade-in 0.3s ease-out;
+                }
+                
+                /* Ajustes para telas de desktop (otimização de espaço) */
+                @media (min-width: 1280px) {
+                    main {
+                        padding-top: 1rem !important;
+                        padding-bottom: 1rem !important;
+                    }
+                    
+                    header {
+                        padding-top: 0.5rem !important;
+                        padding-bottom: 0.5rem !important;
+                    }
+                    
+                    .rounded-xl {
+                        padding: 0.875rem !important;
+                    }
+                }
+                
+                /* Específico para telas 1024x600 e similares */
+                @media (min-width: 1024px) and (max-width: 1280px) and (max-height: 700px) {
+                    main {
+                        padding: 0.5rem 1rem !important;
+                    }
+                    
+                    header {
+                        padding: 0.4rem 0 !important;
+                    }
+                    
+                    header h1 {
+                        font-size: 1rem !important;
+                    }
+                    
+                    .lg\\:col-span-1 .rounded-2xl {
+                        padding: 0.75rem !important;
+                    }
+                    
+                    .lg\\:col-span-1 h2 {
+                        font-size: 0.875rem !important;
+                    }
+                    
+                    .lg\\:col-span-1 .text-sm {
+                        font-size: 0.75rem !important;
+                    }
+                    
+                    .lg\\:col-span-1 .space-y-5 > * + * {
+                        margin-top: 0.75rem !important;
+                    }
+                    
+                    .lg\\:col-span-1 .space-y-3 > * + * {
+                        margin-top: 0.5rem !important;
+                    }
+                    
+                    .lg\\:col-span-2 .rounded-xl {
+                        padding: 0.75rem !important;
+                    }
+                    
+                    /* Ocultar badge "Selecionado" em telas pequenas */
+                    .lg\\:col-span-1 .bg-primary\\/10 {
+                        display: none !important;
+                    }
+                    
+                    /* Header do card mais compacto */
+                    .lg\\:col-span-1 .pb-4 {
+                        padding-bottom: 0.5rem !important;
+                    }
+                    
+                    .lg\\:col-span-1 .flex.items-center.justify-between {
+                        justify-content: flex-start !important;
+                    }
                 }
             `}</style>
 

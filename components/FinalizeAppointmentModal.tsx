@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useServices } from '../contexts.tsx';
 import { Appointment, Service, PaymentMethod, Transaction } from '../types.ts';
+import { BottomSheet } from './BottomSheet.tsx';
+import { getPaymentMethodOptions } from '../constants.ts';
 
 const paymentMethodOptions = Object.values(PaymentMethod);
 
@@ -58,6 +60,7 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
     const [payments, setPayments] = useState<PaymentState[]>([{ id: Date.now(), method: PaymentMethod.Pix, amount: '' }]);
     const [discount, setDiscount] = useState('');
     const [showAllServices, setShowAllServices] = useState(false);
+    const [openPaymentMethodSheet, setOpenPaymentMethodSheet] = useState<number | null>(null);
 
     const subtotal = useMemo(() => {
         return selectedServices.reduce((acc, service) => acc + service.price, 0);
@@ -300,13 +303,16 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
                                     <div className="space-y-3">
                                     {payments.map((payment) => (
                                         <div key={payment.id} className="grid grid-cols-10 gap-2 items-center">
-                                            <select 
-                                                value={payment.method}
-                                                onChange={e => handlePaymentChange(payment.id, 'method', e.target.value)}
-                                                className="col-span-10 sm:col-span-5 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs font-normal text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20"
+                                            <button
+                                                type="button"
+                                                onClick={() => setOpenPaymentMethodSheet(payment.id)}
+                                                className="col-span-10 sm:col-span-5 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs font-normal text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800"
                                             >
-                                                {paymentMethodOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                                            </select>
+                                                <span>{payment.method}</span>
+                                                <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 text-base">
+                                                    expand_more
+                                                </span>
+                                            </button>
                                             <div className="relative col-span-8 sm:col-span-4">
                                                 <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
                                                 <input
@@ -352,6 +358,21 @@ export const FinalizeAppointmentModal: React.FC<FinalizeAppointmentModalProps> =
                     </div>
                 </form>
             </div>
+
+            {/* Payment Method Bottom Sheets */}
+            {payments.map((payment) => (
+                <BottomSheet
+                    key={`payment-method-${payment.id}`}
+                    isOpen={openPaymentMethodSheet === payment.id}
+                    onClose={() => setOpenPaymentMethodSheet(null)}
+                    title="Selecione o método de pagamento"
+                    options={getPaymentMethodOptions(false)}
+                    selectedValue={payment.method}
+                    onSelect={(value) => {
+                        handlePaymentChange(payment.id, 'method', value as string);
+                    }}
+                />
+            ))}
         </div>
     );
 };

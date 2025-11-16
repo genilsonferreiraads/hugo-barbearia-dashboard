@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Client } from '../types.ts';
 import { useClients } from '../contexts.tsx';
 
@@ -25,11 +26,22 @@ export const SaveClientModal: React.FC<SaveClientModalProps> = ({
     const [successMessage, setSuccessMessage] = useState('');
     const whatsappInputRef = React.useRef<HTMLInputElement>(null);
 
-    // Focar no campo WhatsApp quando o modal abrir
+    // Focar no campo WhatsApp quando o modal abrir e bloquear scroll
     useEffect(() => {
-        if (isOpen && whatsappInputRef.current) {
+        if (isOpen) {
+            // Bloquear scroll do body
+            document.body.style.overflow = 'hidden';
+            
+            // Focar no campo
             setTimeout(() => whatsappInputRef.current?.focus(), 100);
+        } else {
+            // Restaurar scroll
+            document.body.style.overflow = '';
         }
+        
+        return () => {
+            document.body.style.overflow = '';
+        };
     }, [isOpen]);
 
     // Limpar formulário quando fechar
@@ -111,17 +123,34 @@ export const SaveClientModal: React.FC<SaveClientModalProps> = ({
 
     if (!isOpen) return null;
 
-    return (
+    const modalContent = (
         <>
             {/* Overlay */}
             <div 
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                className="fixed bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
                 onClick={handleCancel}
+                style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'auto'
+                }}
             >
                 {/* Modal */}
                 <div 
-                    className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md transform transition-all"
+                    className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md"
                     onClick={(e) => e.stopPropagation()}
+                    style={{
+                        maxHeight: '90vh',
+                        overflowY: 'auto',
+                        margin: 'auto'
+                    }}
                 >
                     {/* Header */}
                     <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-800">
@@ -244,5 +273,8 @@ export const SaveClientModal: React.FC<SaveClientModalProps> = ({
             </div>
         </>
     );
+
+    // Renderizar usando Portal para garantir que apareça no topo da página
+    return createPortal(modalContent, document.body);
 };
 

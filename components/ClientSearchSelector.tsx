@@ -10,6 +10,7 @@ interface ClientSearchSelectorProps {
     disabled?: boolean;
     onValueChange?: (value: string) => void; // Callback para quando o valor do input muda
     onNewClient?: (clientName: string) => void; // Callback para quando o usuário quer criar novo cliente
+    allowClear?: boolean; // Se true, mostra o botão X para limpar o campo (padrão: true)
 }
 
 const Icon = ({ name, className }: { name: string; className?: string }) => 
@@ -22,7 +23,8 @@ export const ClientSearchSelector: React.FC<ClientSearchSelectorProps> = ({
     className = '',
     disabled = false,
     onValueChange,
-    onNewClient
+    onNewClient,
+    allowClear = true
 }) => {
     const { clients } = useClients();
     const [searchTerm, setSearchTerm] = useState(value || '');
@@ -30,6 +32,25 @@ export const ClientSearchSelector: React.FC<ClientSearchSelectorProps> = ({
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Sincronizar searchTerm com value quando value mudar externamente
+    useEffect(() => {
+        if (value !== undefined && value !== searchTerm) {
+            setSearchTerm(value);
+            
+            // Verificar se o value corresponde a um cliente real na base
+            let foundClient: Client | null = null;
+            if (value && clients && clients.length > 0) {
+                foundClient = clients.find(c => 
+                    c.fullName.toLowerCase() === value.toLowerCase()
+                ) || null;
+            }
+            
+            setSelectedClient(foundClient);
+            // Notificar sempre quando sincronizar
+            onSelectClient(foundClient);
+        }
+    }, [value, clients, searchTerm, onSelectClient]);
 
     // Filtrar clientes baseado no termo de busca (apenas se houver texto)
     const filteredClients = useMemo(() => {
@@ -163,6 +184,12 @@ export const ClientSearchSelector: React.FC<ClientSearchSelectorProps> = ({
         setSearchTerm('');
         setIsOpen(false);
         onSelectClient(null);
+        
+        // Notificar o componente pai sobre a limpeza
+        if (onValueChange) {
+            onValueChange('');
+        }
+        
         inputRef.current?.focus();
     };
 
@@ -208,11 +235,11 @@ export const ClientSearchSelector: React.FC<ClientSearchSelectorProps> = ({
                     }`}
                     autoComplete="off"
                 />
-                {selectedClient && !disabled && searchTerm === selectedClient.fullName && (
+                {searchTerm && !disabled && allowClear && (
                     <button
                         type="button"
                         onClick={handleClear}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors z-10"
                     >
                         <Icon name="close" className="text-lg" />
                     </button>
@@ -220,7 +247,7 @@ export const ClientSearchSelector: React.FC<ClientSearchSelectorProps> = ({
             </div>
 
             {/* Dropdown de resultados - SEMPRE usar filteredClients, nunca clients diretamente */}
-            {isOpen && !disabled && (
+            {isOpen && !disabled && (filteredClients.length > 0 || onNewClient) && (
                 <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {/* Botão Novo Cliente - aparece quando há texto digitado */}
                     {searchTerm.trim() && onNewClient && (
@@ -272,8 +299,17 @@ export const ClientSearchSelector: React.FC<ClientSearchSelectorProps> = ({
                                     </div>
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                         {client.whatsapp}
-                                        {client.nickname && ` • ${client.nickname}`}
                                     </div>
+                                    {client.nickname && (
+                                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">
+                                            {client.nickname}
+                                        </div>
+                                    )}
+                                    {client.observation && (
+                                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 italic truncate">
+                                            {client.observation}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </button>

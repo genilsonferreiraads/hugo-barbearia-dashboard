@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useExpenses, useExpenseCategories } from '../contexts.tsx';
 import { Toast, ToastType } from './Toast.tsx';
+import { BottomSheet } from './BottomSheet.tsx';
 
 const Icon = ({ name, className }: { name: string; className?: string }) => 
     <span className={`material-symbols-outlined ${className || ''}`}>{name}</span>;
@@ -29,6 +30,7 @@ export const EditExpensePage: React.FC = () => {
     const { categories } = useExpenseCategories();
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
 
     const expense = expenses.find(e => e.id === Number(id));
 
@@ -220,18 +222,18 @@ export const EditExpensePage: React.FC = () => {
                                     Gerenciar categorias
                                 </button>
                             </div>
-                            <select
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 px-3 text-sm text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                            <button
+                                type="button"
+                                onClick={() => setIsCategorySheetOpen(true)}
+                                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 px-3 text-sm text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800"
                             >
-                                <option value="">Selecione uma categoria...</option>
-                                {categories.map((category) => (
-                                    <option key={category.id} value={category.name}>
-                                        {category.name}
-                                    </option>
-                                ))}
-                            </select>
+                                <span className={formData.category ? '' : 'text-gray-400 dark:text-gray-500'}>
+                                    {formData.category || 'Selecione uma categoria...'}
+                                </span>
+                                <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 text-lg">
+                                    expand_more
+                                </span>
+                            </button>
                         </label>
                     </div>
 
@@ -273,6 +275,30 @@ export const EditExpensePage: React.FC = () => {
                     onClose={() => setToast(null)}
                 />
             )}
+
+            {/* Category Bottom Sheet */}
+            <BottomSheet
+                isOpen={isCategorySheetOpen}
+                onClose={() => setIsCategorySheetOpen(false)}
+                title="Selecione uma categoria"
+                options={[
+                    {
+                        id: '',
+                        label: 'Nenhuma categoria',
+                        icon: 'close',
+                    },
+                    ...categories.map((category) => ({
+                        id: category.name,
+                        label: category.name,
+                        color: category.color,
+                    })),
+                ]}
+                selectedValue={formData.category}
+                onSelect={(value) => {
+                    setFormData({ ...formData, category: value as string });
+                }}
+                emptyMessage="Nenhuma categoria disponível. Crie uma categoria nas configurações."
+            />
         </div>
     );
 };
