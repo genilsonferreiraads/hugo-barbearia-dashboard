@@ -71,6 +71,7 @@ export const SalesPage: React.FC = () => {
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [numberOfInstallments, setNumberOfInstallments] = useState(1);
     const [installmentsInputValue, setInstallmentsInputValue] = useState('1'); // Estado para permitir edição livre
+    const [openPaymentDropdown, setOpenPaymentDropdown] = useState<number | null>(null);
     const [firstDueDate, setFirstDueDate] = useState(() => {
         const nextMonth = new Date();
         nextMonth.setMonth(nextMonth.getMonth() + 1);
@@ -182,9 +183,9 @@ export const SalesPage: React.FC = () => {
         setSelectedProducts(prev => {
             const newMap = new Map(prev);
             const existing = newMap.get(productId);
-            if (existing) {
-                const newQuantity = Math.max(1, existing.quantity + change);
-                newMap.set(productId, { ...existing, quantity: newQuantity });
+            if (existing && typeof existing === 'object' && 'quantity' in existing && 'product' in existing) {
+                const newQuantity = Math.max(1, (existing.quantity as number) + change);
+                newMap.set(productId, { ...existing, quantity: newQuantity } as { product: Product; quantity: number });
             }
             return newMap;
         });
@@ -420,136 +421,187 @@ export const SalesPage: React.FC = () => {
         }
     };
 
+    // Detectar se é mobile
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 1024);
+        };
+        
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    // Sincronizar cliente avulso com cliente do fiado quando estiver em modo fiado
+    useEffect(() => {
+        if (isCreditSale) {
+            // Quando está em modo fiado, manter sincronizado com o cliente avulso
+            setClientName(avulsoClientName);
+            setSelectedClient(avulsoSelectedClient);
+        }
+    }, [avulsoClientName, avulsoSelectedClient, isCreditSale]);
+
     const progressPercentage = (step / 2) * 100;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-background-light to-gray-50 dark:from-background-dark dark:to-gray-900 flex flex-col">
-            {/* Header with Back Button and Progress */}
+            {/* Header with Back Button */}
             <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 backdrop-blur-sm">
-                <div className="max-w-2xl mx-auto px-3 sm:px-6 py-2 sm:py-3">
-                    <div className="flex items-start gap-2 sm:gap-4 mb-3 sm:mb-4">
+                <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
+                    <div className="flex items-center gap-3">
                         <button 
                             type="button"
                             onClick={handleBackStep}
-                            className="flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-xs sm:text-sm shrink-0 mt-0.5"
+                            className="flex items-center justify-center size-10 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors shrink-0"
                         >
-                            <Icon name="arrow_back" className="text-lg" />
-                            <span className="font-medium hidden sm:inline">Voltar</span>
+                            <Icon name="arrow_back" className="text-xl" />
                         </button>
                         
-                        <div className="text-center flex-1">
-                            <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                        <div className="flex-1">
+                            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
                                 {isEditing ? 'Editar Venda' : 'Nova Venda'}
                             </h1>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Passo {step} de 2</p>
+                            {isMobile && <p className="text-xs text-gray-500 dark:text-gray-400">Passo {step} de 2</p>}
                         </div>
-                        
-                        <div className="w-10 sm:w-16" />
                     </div>
 
-                    {/* Progress Bar */}
-                    <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                            className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
-                            style={{ width: `${progressPercentage}%` }}
-                        />
-                    </div>
+                    {/* Progress Bar - Mobile only */}
+                    {isMobile && (
+                        <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden mt-3">
+                            <div 
+                                className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
+                                style={{ width: `${progressPercentage}%` }}
+                            />
+                        </div>
+                    )}
                 </div>
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 max-w-2xl w-full mx-auto px-4 sm:px-6 py-6">
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
                 <form onSubmit={handleSubmit} onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.target instanceof HTMLInputElement && step === 1) {
+                    if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
                         e.preventDefault();
                     }
-                }}>
-                    {/* Step 1: Product Selection */}
-                    {step === 1 && (
-                        <div className="space-y-5 animate-fade-in">
-                            {/* Cliente para Venda Avulso */}
-                            {!isCreditSale && (
-                                <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
-                                    <label className="block space-y-2">
-                                        <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                                            Cliente <span className="text-gray-500 text-xs">(Opcional)</span>
-                                        </p>
-                                        <ClientSearchField
-                                            onSelectClient={(client) => {
-                                                setAvulsoSelectedClient(client);
-                                                if (client) {
-                                                    setAvulsoClientName(client.fullName);
-                                                } else {
-                                                    setAvulsoClientName('');
-                                                }
-                                            }}
-                                            onValueChange={(name) => {
-                                                setAvulsoClientName(name);
-                                                if (!name.trim()) {
-                                                    setAvulsoSelectedClient(null);
-                                                }
-                                            }}
-                                            value={avulsoClientName}
-                                            placeholder="Buscar cliente ou digite o nome... (deixe vazio para 'Venda de Produto')"
-                                            className="w-full"
-                                        />
-                                        {avulsoSelectedClient && (
-                                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-                                                <Icon name="check_circle" className="text-green-500 text-sm" />
-                                                <span>{avulsoSelectedClient.whatsapp}</span>
-                                                {avulsoSelectedClient.nickname && (
-                                                    <span>• {avulsoSelectedClient.nickname}</span>
-                                                )}
-                                            </div>
-                                        )}
-                                    </label>
-                                </div>
-                            )}
+                }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Coluna Esquerda - Cliente e Produtos (Desktop sempre visível, Mobile Step 1) */}
+                    <div className={`lg:col-span-2 space-y-5 ${step === 2 && isMobile ? 'hidden' : ''}`}>
+                        {/* Cliente */}
+                        <div className="bg-white dark:bg-gray-900/50 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="person" className="text-primary text-xl" />
+                                <h2 className="text-base font-bold text-gray-900 dark:text-white">Cliente</h2>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">(Opcional)</span>
+                            </div>
                             
-                            {/* Search Bar */}
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
-                                <label className="block space-y-2">
-                                    <p className="text-xs font-semibold text-gray-900 dark:text-white">Pesquisar Produto</p>
-                                    <div className="relative">
-                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600">
-                                            <Icon name="search" className="text-lg" />
-                                        </span>
-                                        <input
-                                            type="text"
-                                            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 pl-10 pr-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
-                                            placeholder="Digite o nome do produto..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            autoFocus
-                                        />
-                                    </div>
-                                </label>
+                            <ClientSearchField
+                                onSelectClient={(client) => {
+                                    setAvulsoSelectedClient(client);
+                                    if (client) {
+                                        setAvulsoClientName(client.fullName);
+                                    } else {
+                                        setAvulsoClientName('');
+                                    }
+                                }}
+                                onValueChange={(name) => {
+                                    setAvulsoClientName(name);
+                                    if (!name.trim()) {
+                                        setAvulsoSelectedClient(null);
+                                    }
+                                }}
+                                value={avulsoClientName}
+                                placeholder="Buscar cliente ou digite o nome..."
+                                className="w-full"
+                                showAddButton={true}
+                            />
+                        </div>
+
+                        {/* Produtos */}
+                        <div className="bg-white dark:bg-gray-900/50 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="shopping_bag" className="text-primary text-xl" />
+                                <h2 className="text-base font-bold text-gray-900 dark:text-white">Produtos</h2>
                             </div>
 
-                            {/* Products Section - Only show when searching */}
-                            {searchQuery.trim() ? (
-                                <div className="space-y-4">
-                                    <div className="flex items-baseline justify-between mb-3">
+                            {/* Search Bar */}
+                            <div className="relative">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600">
+                                    <Icon name="search" className="text-lg" />
+                                </span>
+                                <input
+                                    type="text"
+                                    className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 pl-10 pr-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                    placeholder="Digite o nome do produto..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+
+                            {/* Empty State - Show when no search and no products selected */}
+                            {!searchQuery.trim() && selectedProducts.size === 0 && (
+                                <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900/30 dark:via-gray-900/20 dark:to-gray-900/30 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700 p-8 text-center">
+                                    <div className="max-w-sm mx-auto space-y-4">
+                                        <div className="relative inline-block">
+                                            <div className="flex items-center justify-center size-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/20 mx-auto">
+                                                <Icon name="shopping_bag" className="text-4xl text-primary" />
+                                            </div>
+                                            <div className="absolute -top-1 -right-1 flex items-center justify-center size-8 rounded-full bg-blue-500 border-4 border-white dark:border-gray-900">
+                                                <Icon name="search" className="text-white text-base" />
+                                            </div>
+                                        </div>
+                                        
                                         <div>
-                                            <h3 className="text-base font-bold text-gray-900 dark:text-white">Resultados da Pesquisa</h3>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                                {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
-                                                {selectedProducts.size > 0 && ` • ${selectedProducts.size} selecionado${selectedProducts.size !== 1 ? 's' : ''}`}
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                                                Nenhum produto selecionado
+                                            </h3>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                                Use o campo de busca acima para encontrar e adicionar produtos à venda
                                             </p>
                                         </div>
-                                        {selectedProducts.size > 0 && (
-                                            <p className="text-2xl font-bold text-primary">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
-                                        )}
+
+                                        <div className="flex items-center justify-center gap-2 pt-2">
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800">
+                                                <Icon name="keyboard" className="text-gray-500 dark:text-gray-400 text-sm" />
+                                                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                    Digite para buscar
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Products Section - Only show when searching */}
+                            {searchQuery.trim() && (
+                                <div className="space-y-3">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex items-center justify-center size-8 rounded-lg bg-primary/10 dark:bg-primary/20">
+                                                <Icon name="search" className="text-primary text-lg" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-900 dark:text-white">Resultados da Pesquisa</h3>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {filteredProducts.length === 0 ? (
-                                        <div className="text-center py-8 bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800">
-                                            <Icon name="search_off" className="text-4xl text-gray-300 dark:text-gray-700 mb-2" />
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum produto encontrado</p>
-                                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Tente com outros termos de busca</p>
+                                        <div className="text-center py-10 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/30 dark:to-gray-900/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700">
+                                            <div className="flex items-center justify-center size-16 rounded-full bg-gray-200 dark:bg-gray-800 mx-auto mb-3">
+                                                <Icon name="search_off" className="text-3xl text-gray-400 dark:text-gray-600" />
+                                            </div>
+                                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Nenhum produto encontrado</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-500">Tente buscar por outro nome</p>
                                         </div>
                                     ) : (
-                                        <div className="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-200 dark:divide-gray-800">
+                                        <div className="grid grid-cols-1 gap-2">
                                             {filteredProducts.map(product => {
                                                 const selectedItem = selectedProducts.get(product.id);
                                                 const isSelected = !!selectedItem;
@@ -558,41 +610,81 @@ export const SalesPage: React.FC = () => {
                                                         key={product.id}
                                                         type="button"
                                                         onClick={() => handleProductToggle(product)}
-                                                        className={`w-full p-4 flex items-center justify-between transition-all text-left ${
+                                                        className={`group relative rounded-xl p-4 transition-all duration-200 text-left ${
                                                             isSelected
-                                                                ? 'bg-primary/5 dark:bg-primary/10'
-                                                                : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                                                                ? 'bg-gradient-to-r from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10 border-2 border-primary/30 shadow-sm'
+                                                                : 'bg-white dark:bg-gray-900/50 border-2 border-gray-200 dark:border-gray-800 hover:border-primary/30 hover:shadow-md'
                                                         }`}
                                                     >
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className={`font-semibold text-base ${isSelected ? 'text-primary' : 'text-gray-900 dark:text-white'}`}>{product.name}</p>
-                                                            <div className="flex items-center gap-2 mt-0.5">
-                                                                <p className="text-sm text-gray-600 dark:text-gray-400">R$ {product.price.toFixed(2).replace('.', ',')}</p>
-                                                                {isSelected && selectedItem && (
-                                                                    <span className="text-xs font-semibold text-primary bg-primary/10 dark:bg-primary/20 px-2 py-0.5 rounded">
-                                                                        Qtd: {selectedItem.quantity}
-                                                                    </span>
+                                                        <div className="flex items-center gap-4">
+                                                            {/* Checkbox */}
+                                                            <div className={`relative flex items-center justify-center size-11 rounded-xl transition-all ${
+                                                                isSelected
+                                                                    ? 'bg-primary shadow-lg shadow-primary/20'
+                                                                    : 'bg-gray-100 dark:bg-gray-800 group-hover:bg-gray-200 dark:group-hover:bg-gray-700'
+                                                            }`}>
+                                                                {isSelected ? (
+                                                                    <Icon name="check_circle" className="text-white text-2xl" />
+                                                                ) : (
+                                                                    <Icon name="add_circle" className="text-gray-400 dark:text-gray-600 text-2xl group-hover:text-primary transition-colors" />
                                                                 )}
                                                             </div>
+
+                                                            {/* Product Info */}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <h4 className={`font-bold text-base mb-1 truncate ${
+                                                                            isSelected 
+                                                                                ? 'text-primary' 
+                                                                                : 'text-gray-900 dark:text-white group-hover:text-primary transition-colors'
+                                                                        }`}>
+                                                                            {product.name}
+                                                                        </h4>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className={`text-lg font-black ${
+                                                                                isSelected 
+                                                                                    ? 'text-primary' 
+                                                                                    : 'text-gray-900 dark:text-white'
+                                                                            }`}>
+                                                                                R$ {product.price.toFixed(2).replace('.', ',')}
+                                                                            </span>
+                                                                            {product.stock !== undefined && (
+                                                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                                                                    product.stock > 10
+                                                                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                                                                        : product.stock > 0
+                                                                                        ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                                                                                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                                                                }`}>
+                                                                                    {product.stock > 0 ? `${product.stock} em estoque` : 'Sem estoque'}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Quantity Badge */}
+                                                                    {isSelected && selectedItem && (
+                                                                        <div className="flex items-center gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-primary/20 shadow-sm">
+                                                                            <Icon name="shopping_bag" className="text-primary text-sm" />
+                                                                            <span className="text-sm font-bold text-primary">
+                                                                                {selectedItem.quantity}x
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                        <div className={`ml-4 w-6 h-6 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
-                                                            isSelected
-                                                                ? 'bg-primary border-primary'
-                                                                : 'border-gray-300 dark:border-gray-600'
-                                                        }`}>
-                                                            {isSelected && <Icon name="check" className="text-white text-xs" />}
-                                                        </div>
+
+                                                        {/* Selected indicator line */}
+                                                        {isSelected && (
+                                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-xl" />
+                                                        )}
                                                     </button>
                                                 );
                                             })}
                                         </div>
                                     )}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12 bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800">
-                                    <Icon name="search" className="text-5xl text-gray-300 dark:text-gray-700 mb-4" />
-                                    <p className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">Pesquise um produto</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Digite o nome do produto no campo de busca acima</p>
                                 </div>
                             )}
 
@@ -710,96 +802,125 @@ export const SalesPage: React.FC = () => {
                                     </div>
                                 </div>
                             )}
-
-                            {/* Discount Section */}
-                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
-                                <div className="space-y-1.5">
-                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resumo</p>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                                        <span className="font-semibold text-gray-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-600 dark:text-gray-400">Desconto</span>
-                                        <span className="font-semibold text-red-600 dark:text-red-500">- R$ {discountValue.toFixed(2).replace('.', ',')}</span>
-                                    </div>
-                                    <div className="border-t border-gray-200 dark:border-gray-700 pt-1.5 flex justify-between items-center">
-                                        <span className="text-gray-900 dark:text-white font-semibold text-sm">Total</span>
-                                        <span className="text-lg font-bold text-primary">R$ {totalValue.toFixed(2).replace('.', ',')}</span>
-                                    </div>
-                                </div>
-
-                                <label className="block space-y-2">
-                                    <p className="text-xs font-semibold text-gray-900 dark:text-white">Desconto (Opcional)</p>
-                                    <div className="relative">
-                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400 text-sm font-medium">R$</span>
-                                        <input 
-                                            type="text"
-                                            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-9 pl-10 pr-3 text-sm font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all" 
-                                            placeholder="0,00"
-                                            value={discount}
-                                            onChange={(e) => setDiscount(formatDiscountInput(e.target.value))}
-                                        />
-                                    </div>
-                                </label>
-                            </div>
                         </div>
-                    )}
 
-                    {/* Step 2: Payment */}
-                    {step === 2 && (
-                        <div className="space-y-5 animate-fade-in">
-                            {/* Total Card */}
-                            <div className="bg-gradient-to-br from-primary/15 to-primary/5 dark:from-primary/20 dark:to-primary/10 rounded-lg p-6 border border-primary/30 text-center">
-                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Total a Pagar</p>
-                                <p className="text-4xl font-bold text-primary mb-3">R$ {totalValue.toFixed(2).replace('.', ',')}</p>
-                                <div className="flex justify-center gap-4 text-xs">
-                                    <div>
-                                        <p className="text-gray-600 dark:text-gray-400">Subtotal</p>
-                                        <p className="font-bold text-gray-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</p>
-                                    </div>
-                                    <div className="w-px bg-gray-300 dark:bg-gray-600" />
-                                    <div>
-                                        <p className="text-gray-600 dark:text-gray-400">Desconto</p>
-                                        <p className="font-bold text-gray-900 dark:text-white">R$ {discountValue.toFixed(2).replace('.', ',')}</p>
-                                    </div>
-                                </div>
+                        {/* Mobile Continue Button */}
+                        {isMobile && (
+                            <div className="flex gap-3">
+                                <button 
+                                    type="button" 
+                                    onClick={handleBackStep}
+                                    className="flex-1 px-6 h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={handleNextStep}
+                                    disabled={selectedProducts.size === 0}
+                                    className="flex-1 px-6 h-11 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                                >
+                                    <span>Continuar</span>
+                                    <Icon name="arrow_forward" className="text-base" />
+                                </button>
                             </div>
+                        )}
+                    </div>
 
-                            {/* Products Summary */}
-                            {selectedProducts.size > 0 && (
-                                <div className="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800">
-                                    <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-                                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Resumo dos Produtos</h3>
+                    {/* Coluna Direita - Carrinho e Pagamento (Desktop sempre visível, Mobile Step 2) */}
+                    <div className={`lg:col-span-1 ${step === 1 && isMobile ? 'hidden' : ''}`}>
+                        <div className="sticky top-24 space-y-5">
+                            {/* Carrinho - Resumo */}
+                            <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-lg space-y-5">
+                                {/* Header */}
+                                <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-800">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="shopping_cart" className="text-primary text-xl" />
+                                        <h2 className="text-base font-bold text-gray-900 dark:text-white">Carrinho</h2>
                                     </div>
-                                    <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                                    {selectedProducts.size > 0 && (
+                                        <span className="flex items-center justify-center size-6 rounded-full bg-primary text-white text-xs font-bold">
+                                            {selectedProducts.size}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Produtos Selecionados */}
+                                {selectedProducts.size > 0 ? (
+                                    <div className="space-y-3 max-h-[200px] overflow-y-auto">
                                         {Array.from(selectedProducts.values()).map(({ product, quantity }) => (
-                                            <div key={product.id} className="p-3 flex items-center justify-between">
+                                            <div key={product.id} className="flex items-center justify-between text-sm">
                                                 <div className="flex-1">
-                                                    <p className="font-medium text-gray-900 dark:text-white text-sm">{product.name}</p>
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                                                        {quantity} unidade{quantity !== 1 ? 's' : ''} × R$ {product.price.toFixed(2).replace('.', ',')}
-                                                    </p>
+                                                    <p className="font-medium text-gray-900 dark:text-white">{product.name}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{quantity}x R$ {product.price.toFixed(2).replace('.', ',')}</p>
                                                 </div>
-                                                <div className="text-right ml-3">
-                                                    <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                                                        R$ {(product.price * quantity).toFixed(2).replace('.', ',')}
-                                                    </p>
-                                                </div>
+                                                <p className="font-bold text-gray-900 dark:text-white">
+                                                    R$ {(product.price * quantity).toFixed(2).replace('.', ',')}
+                                                </p>
                                             </div>
                                         ))}
                                     </div>
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <Icon name="shopping_cart" className="text-4xl text-gray-300 dark:text-gray-700 mb-2" />
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum produto selecionado</p>
+                                    </div>
+                                )}
 
-                            {/* Payment Methods */}
-                            <div className="space-y-3">
-                                <div>
-                                    <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">Formas de Pagamento</h3>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">Selecione como será realizado o pagamento</p>
-                                </div>
+                                {/* Desconto */}
+                                {selectedProducts.size > 0 && (
+                                    <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-800">
+                                        <label className="block space-y-2">
+                                            <p className="text-xs font-semibold text-gray-900 dark:text-white">Desconto (Opcional)</p>
+                                            <div className="relative">
+                                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400 text-sm font-medium">R$</span>
+                                                <input 
+                                                    type="text"
+                                                    className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-9 pl-10 pr-3 text-sm font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all" 
+                                                    placeholder="0,00"
+                                                    value={discount}
+                                                    onChange={(e) => setDiscount(formatDiscountInput(e.target.value))}
+                                                />
+                                            </div>
+                                        </label>
 
-                                {/* Opção de Fiado (se habilitada) */}
+                                        {/* Resumo de valores */}
+                                        <div className="space-y-2 pt-3">
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+                                                <span className="font-semibold text-gray-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                                            </div>
+                                            {discountValue > 0 && (
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="text-gray-600 dark:text-gray-400">Desconto</span>
+                                                    <span className="font-semibold text-red-600 dark:text-red-500">- R$ {discountValue.toFixed(2).replace('.', ',')}</span>
+                                                </div>
+                                            )}
+                                            <div className="border-t border-gray-200 dark:border-gray-700 pt-2 flex justify-between items-center">
+                                                <span className="text-gray-900 dark:text-white font-bold">Total</span>
+                                                <span className="text-xl font-black text-primary">R$ {totalValue.toFixed(2).replace('.', ',')}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Pagamento */}
+                            {selectedProducts.size > 0 && (
+                                <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-lg space-y-4">
+                                    <div className="flex items-center gap-2 pb-4 border-b border-gray-200 dark:border-gray-800">
+                                        <Icon name="payments" className="text-primary text-xl" />
+                                        <h2 className="text-base font-bold text-gray-900 dark:text-white">Pagamento</h2>
+                                    </div>
+
+                                    {/* Opções de Pagamento */}
+                                    <div className="space-y-3">
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Formas de Pagamento</h3>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Selecione como será realizado o pagamento</p>
+                                        </div>
+
+                                        {/* Opção de Fiado (se habilitada) */}
                                 {settings.creditSalesEnabled && (
                                     <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
                                         <label className="flex items-center gap-3 cursor-pointer">
@@ -814,14 +935,18 @@ export const SalesPage: React.FC = () => {
                                                         // Resetar valores do fiado
                                                         setInstallmentsInputValue('1');
                                                         setNumberOfInstallments(1);
-                                                        // Limpar cliente da venda avulso
-                                                        setAvulsoClientName('');
-                                                        setAvulsoSelectedClient(null);
+                                                        // Copiar cliente da venda avulso para o fiado
+                                                        if (avulsoClientName || avulsoSelectedClient) {
+                                                            setClientName(avulsoClientName);
+                                                            setSelectedClient(avulsoSelectedClient);
+                                                        }
                                                     } else {
                                                         setPayments([{ id: Date.now(), method: '' as PaymentMethod | '', amount: '' }]);
-                                                        // Limpar cliente do fiado
-                                                        setClientName('');
-                                                        setSelectedClient(null);
+                                                        // Copiar cliente do fiado de volta para venda avulso
+                                                        if (clientName || selectedClient) {
+                                                            setAvulsoClientName(clientName);
+                                                            setAvulsoSelectedClient(selectedClient);
+                                                        }
                                                     }
                                                 }}
                                                 className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary focus:ring-2"
@@ -839,62 +964,178 @@ export const SalesPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {!isCreditSale && (
-                                <div className="space-y-3">
-                                    {payments.map((payment, index) => (
-                                        <div key={payment.id} className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800 space-y-3">
-                                            {payments.length > 1 && (
-                                                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pagamento {index + 1}</p>
-                                            )}
-                                            
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <div className="space-y-1.5">
-                                                    <label className="text-xs font-semibold text-gray-900 dark:text-white block">Método</label>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setOpenPaymentMethodSheet(payment.id)}
-                                                        className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
-                                                    >
-                                                        <span className={payment.method ? '' : 'text-gray-400 dark:text-gray-500'}>
-                                                            {payment.method || 'Selecione...'}
-                                                        </span>
-                                                        <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 text-base">
-                                                            expand_more
-                                                        </span>
-                                                    </button>
-                                                </div>
+                                        {!isCreditSale && (
+                                            <div className="space-y-3">
+                                                {payments.map((payment, index) => (
+                                                    <div key={payment.id} className="space-y-3">
+                                                        {payments.length > 1 && (
+                                                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pagamento {index + 1}</p>
+                                                        )}
+                                                        
+                                                        {/* Se só tem 1 método, mostrar só o seletor */}
+                                                        {payments.length === 1 ? (
+                                                            <div className="space-y-2 relative">
+                                                                <label className="text-xs font-semibold text-gray-900 dark:text-white block">Método de Pagamento</label>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (isMobile) {
+                                                                            setOpenPaymentMethodSheet(payment.id);
+                                                                        } else {
+                                                                            setOpenPaymentDropdown(openPaymentDropdown === payment.id ? null : payment.id);
+                                                                        }
+                                                                    }}
+                                                                    className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-sm font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
+                                                                >
+                                                                    <span className={payment.method ? '' : 'text-gray-400 dark:text-gray-500'}>
+                                                                        {payment.method || 'Selecione...'}
+                                                                    </span>
+                                                                    <Icon name="expand_more" className="text-gray-400 dark:text-gray-500 text-lg" />
+                                                                </button>
 
-                                                <div className="space-y-1.5">
-                                                    <label className="text-xs font-semibold text-gray-900 dark:text-white block">Valor</label>
-                                                    <div className="relative">
-                                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="0,00"
-                                                            value={payment.amount}
-                                                            onChange={e => handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value))}
-                                                            className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-10 pr-3 text-xs font-semibold text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
-                                                        />
+                                                                {/* Dropdown Menu - Desktop only */}
+                                                                {!isMobile && openPaymentDropdown === payment.id && (
+                                                                    <>
+                                                                        {/* Overlay para fechar ao clicar fora */}
+                                                                        <div 
+                                                                            className="fixed inset-0 z-10" 
+                                                                            onClick={() => setOpenPaymentDropdown(null)}
+                                                                        />
+                                                                        
+                                                                        <div className="absolute z-20 mt-1 w-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl max-h-60 overflow-auto">
+                                                                            {getPaymentMethodOptions(true).map((option) => (
+                                                                                <button
+                                                                                    key={option.id}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        handlePaymentChange(payment.id, 'method', option.id as string);
+                                                                                        setOpenPaymentDropdown(null);
+                                                                                    }}
+                                                                                    className={`w-full px-4 py-3 text-left text-sm transition-colors flex items-center gap-3 ${
+                                                                                        payment.method === option.id
+                                                                                            ? 'bg-primary/10 text-primary font-semibold'
+                                                                                            : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                                                    }`}
+                                                                                >
+                                                                                    <div 
+                                                                                        className="w-3 h-3 rounded-full" 
+                                                                                        style={{ backgroundColor: option.color }}
+                                                                                    />
+                                                                                    <span>{option.label}</span>
+                                                                                    {payment.method === option.id && (
+                                                                                        <Icon name="check" className="text-lg ml-auto" />
+                                                                                    )}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            /* Se tem mais de 1, mostrar grid com método e valor */
+                                                            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-800">
+                                                                <div className="grid grid-cols-2 gap-3">
+                                                                    <div className="space-y-1.5 relative">
+                                                                        <label className="text-xs font-semibold text-gray-900 dark:text-white block">Método</label>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                if (isMobile) {
+                                                                                    setOpenPaymentMethodSheet(payment.id);
+                                                                                } else {
+                                                                                    setOpenPaymentDropdown(openPaymentDropdown === payment.id ? null : payment.id);
+                                                                                }
+                                                                            }}
+                                                                            className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
+                                                                        >
+                                                                            <span className={payment.method ? '' : 'text-gray-400 dark:text-gray-500'}>
+                                                                                {payment.method || 'Selecione...'}
+                                                                            </span>
+                                                                            <Icon name="expand_more" className="text-gray-400 dark:text-gray-500 text-base" />
+                                                                        </button>
+
+                                                                        {/* Dropdown Menu - Desktop only */}
+                                                                        {!isMobile && openPaymentDropdown === payment.id && (
+                                                                            <>
+                                                                                {/* Overlay para fechar ao clicar fora */}
+                                                                                <div 
+                                                                                    className="fixed inset-0 z-10" 
+                                                                                    onClick={() => setOpenPaymentDropdown(null)}
+                                                                                />
+                                                                                
+                                                                                <div className="absolute z-20 mt-1 w-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl max-h-60 overflow-auto">
+                                                                                    {getPaymentMethodOptions(true).map((option) => (
+                                                                                        <button
+                                                                                            key={option.id}
+                                                                                            type="button"
+                                                                                            onClick={() => {
+                                                                                                handlePaymentChange(payment.id, 'method', option.id as string);
+                                                                                                setOpenPaymentDropdown(null);
+                                                                                            }}
+                                                                                            className={`w-full px-3 py-2 text-left text-xs transition-colors flex items-center gap-2 ${
+                                                                                                payment.method === option.id
+                                                                                                    ? 'bg-primary/10 text-primary font-semibold'
+                                                                                                    : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                                                            }`}
+                                                                                        >
+                                                                                            <div 
+                                                                                                className="w-2.5 h-2.5 rounded-full" 
+                                                                                                style={{ backgroundColor: option.color }}
+                                                                                            />
+                                                                                            <span>{option.label}</span>
+                                                                                            {payment.method === option.id && (
+                                                                                                <Icon name="check" className="text-base ml-auto" />
+                                                                                            )}
+                                                                                        </button>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="space-y-1.5">
+                                                                        <label className="text-xs font-semibold text-gray-900 dark:text-white block">Valor</label>
+                                                                        <div className="relative">
+                                                                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
+                                                                            <input
+                                                                                type="text"
+                                                                                placeholder="0,00"
+                                                                                value={payment.amount}
+                                                                                onChange={e => handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value))}
+                                                                                className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-10 pr-3 text-xs font-semibold text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all"
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex justify-end pt-2">
+                                                                    <button 
+                                                                        type="button" 
+                                                                        onClick={() => handleRemovePayment(payment.id)} 
+                                                                        className="flex items-center gap-1 text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium transition-colors text-xs"
+                                                                    >
+                                                                        <Icon name="delete" className="text-sm" />
+                                                                        <span>Remover</span>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </div>
-                                            </div>
+                                                ))}
 
-                                            {payments.length > 1 && (
-                                                <div className="flex justify-end pt-1">
+                                                {/* Botão Adicionar Forma de Pagamento */}
+                                                {payments.length < 2 && (
                                                     <button 
                                                         type="button" 
-                                                        onClick={() => handleRemovePayment(payment.id)} 
-                                                        className="flex items-center gap-1 text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium transition-colors text-sm"
+                                                        onClick={handleAddPayment}
+                                                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-primary hover:text-primary dark:hover:border-primary dark:hover:text-primary transition-colors text-sm font-medium"
                                                     >
-                                                        <Icon name="delete" className="text-base" />
-                                                        <span>Remover</span>
+                                                        <Icon name="add" className="text-lg" />
+                                                        <span>Adicionar Forma de Pagamento</span>
                                                     </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                                )}
+                                                )}
+                                            </div>
+                                        )}
 
                                 {/* Campos de Fiado */}
                                 {isCreditSale && settings.creditSalesEnabled && (
@@ -905,39 +1146,32 @@ export const SalesPage: React.FC = () => {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-gray-900 dark:text-white block">
-                                                    Nome do Cliente *
-                                                </label>
-                                                <ClientSearchField
-                                                    onSelectClient={(client) => {
-                                                        setSelectedClient(client);
-                                                        if (client) {
-                                                            setClientName(client.fullName);
-                                                        } else {
-                                                            setClientName('');
-                                                        }
-                                                    }}
-                                                    onValueChange={(name) => {
-                                                        setClientName(name);
-                                                        if (!name.trim()) {
-                                                            setSelectedClient(null);
-                                                        }
-                                                    }}
-                                                    value={clientName}
-                                                    placeholder="Buscar cliente ou digite o nome..."
-                                                    className="w-full"
-                                                />
-                                                {selectedClient && (
-                                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-                                                        <Icon name="check_circle" className="text-green-500 text-sm" />
-                                                        <span>{selectedClient.whatsapp}</span>
-                                                        {selectedClient.nickname && (
-                                                            <span>• {selectedClient.nickname}</span>
-                                                        )}
+                                            {/* Mostrar cliente selecionado */}
+                                            {(clientName || selectedClient) ? (
+                                                <div className="flex items-center gap-2 px-3 py-2.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/30 rounded-lg">
+                                                    <div className="flex items-center justify-center size-8 rounded-lg bg-green-100 dark:bg-green-900/30">
+                                                        <Icon name="person" className="text-green-600 dark:text-green-400 text-lg" />
                                                     </div>
-                                                )}
-                                            </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">Cliente</p>
+                                                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{clientName}</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800/30">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="flex items-center justify-center size-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 shrink-0">
+                                                            <Icon name="warning" className="text-yellow-600 dark:text-yellow-400 text-xl" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-1">Cliente obrigatório</p>
+                                                            <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                                                                Selecione um cliente no campo de busca acima para continuar com a venda no fiado
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 <div className="space-y-1.5">
@@ -1016,60 +1250,29 @@ export const SalesPage: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
-                            </div>
-                        </div>
-                    )}
+                                    </div>
 
-                    {/* Action Buttons */}
-                    <div className="mt-8 flex gap-3 sm:justify-end flex-wrap sm:flex-nowrap">
-                        {step === 1 && (
-                            <>
-                                <button 
-                                    type="button" 
-                                    onClick={() => navigate(-1)}
-                                    className="flex-1 sm:flex-auto px-6 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
-                                >
-                                    Cancelar
-                                </button>
-                                <button 
-                                    type="button" 
-                                    onClick={handleNextStep}
-                                    className="flex-1 sm:flex-auto px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 text-sm"
-                                >
-                                    <span>Continuar</span>
-                                    <Icon name="arrow_forward" className="text-base" />
-                                </button>
-                            </>
-                        )}
-                        {step === 2 && (
-                            <>
-                                <button 
-                                    type="button" 
-                                    onClick={handleBackStep}
-                                    className="flex-1 sm:flex-auto px-6 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm"
-                                >
-                                    <Icon name="arrow_back" className="text-base" />
-                                    <span>Voltar</span>
-                                </button>
-                                <button 
-                                    type="submit"
-                                    disabled={isSubmitting}
-                                    className="flex-1 sm:flex-auto px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                                >
-                                    {isSubmitting ? (
-                                        <>
-                                            <span className="animate-spin">⏳</span>
-                                            <span>{isEditing ? 'Salvando...' : 'Registrando...'}</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Icon name="check_circle" className="text-base" />
-                                            <span>{isEditing ? 'Salvar Alterações' : 'Confirmar Venda'}</span>
-                                        </>
-                                    )}
-                                </button>
-                            </>
-                        )}
+                                    {/* Botão Finalizar Venda */}
+                                    <button 
+                                        type="submit"
+                                        disabled={isSubmitting || (!isCreditSale && payments.some(p => !p.method)) || (isCreditSale && !clientName.trim())}
+                                        className="w-full px-6 h-11 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <span className="animate-spin">⏳</span>
+                                                <span>{isEditing ? 'Salvando...' : 'Processando...'}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Icon name="check_circle" className="text-lg" />
+                                                <span>{isEditing ? 'Salvar Alterações' : 'Confirmar Venda'}</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </form>
             </main>
@@ -1095,6 +1298,7 @@ export const SalesPage: React.FC = () => {
                     selectedValue={payment.method || ''}
                     onSelect={(value) => {
                         handlePaymentChange(payment.id, 'method', value as string);
+                        setOpenPaymentMethodSheet(null);
                     }}
                 />
             ))}

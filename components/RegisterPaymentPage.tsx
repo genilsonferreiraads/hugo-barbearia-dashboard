@@ -28,6 +28,18 @@ export const RegisterPaymentPage: React.FC = () => {
     const [isPaying, setIsPaying] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
     const [isPaymentMethodSheetOpen, setIsPaymentMethodSheetOpen] = useState(false);
+    const [isPaymentDropdownOpen, setIsPaymentDropdownOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Detect mobile
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 1024);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     useEffect(() => {
         fetchCreditSales();
@@ -183,13 +195,19 @@ export const RegisterPaymentPage: React.FC = () => {
 
                 {/* Payment Form */}
                 <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm space-y-6 relative overflow-visible">
-                    <div className="space-y-2">
+                    <div className="space-y-2 relative">
                         <label className="text-sm font-semibold text-gray-900 dark:text-white block">
                             Método de Pagamento <span className="text-red-500">*</span>
                         </label>
                         <button
                             type="button"
-                            onClick={() => setIsPaymentMethodSheetOpen(true)}
+                            onClick={() => {
+                                if (isMobile) {
+                                    setIsPaymentMethodSheetOpen(true);
+                                } else {
+                                    setIsPaymentDropdownOpen(!isPaymentDropdownOpen);
+                                }
+                            }}
                             className="w-full h-12 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 text-left text-base font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
                             <span className={paymentMethod ? '' : 'text-gray-500 dark:text-gray-400'}>
@@ -200,6 +218,38 @@ export const RegisterPaymentPage: React.FC = () => {
                             </span>
                         </button>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Escolha como o cliente realizou o pagamento</p>
+
+                        {/* Desktop Dropdown */}
+                        {!isMobile && isPaymentDropdownOpen && (
+                            <>
+                                {/* Overlay to close dropdown */}
+                                <div 
+                                    className="fixed inset-0 z-40" 
+                                    onClick={() => setIsPaymentDropdownOpen(false)}
+                                />
+                                {/* Dropdown Menu */}
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+                                    {getPaymentMethodOptions(true).map((option) => (
+                                        <button
+                                            key={option.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setPaymentMethod(option.id);
+                                                setIsPaymentDropdownOpen(false);
+                                            }}
+                                            className={`w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between ${
+                                                paymentMethod === option.id ? 'bg-primary/10 dark:bg-primary/20' : ''
+                                            }`}
+                                        >
+                                            <span className="text-sm font-medium text-gray-900 dark:text-white">{option.label}</span>
+                                            {paymentMethod === option.id && (
+                                                <Icon name="check" className="text-primary text-lg" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="space-y-2">
@@ -256,17 +306,20 @@ export const RegisterPaymentPage: React.FC = () => {
                 />
             )}
 
-            {/* Payment Method Bottom Sheet */}
-            <BottomSheet
-                isOpen={isPaymentMethodSheetOpen}
-                onClose={() => setIsPaymentMethodSheetOpen(false)}
-                title="Selecione o método de pagamento"
-                options={getPaymentMethodOptions(true)}
-                selectedValue={paymentMethod}
-                onSelect={(value) => {
-                    setPaymentMethod(value as string);
-                }}
-            />
+            {/* Payment Method Bottom Sheet (Mobile Only) */}
+            {isMobile && (
+                <BottomSheet
+                    isOpen={isPaymentMethodSheetOpen}
+                    onClose={() => setIsPaymentMethodSheetOpen(false)}
+                    title="Selecione o método de pagamento"
+                    options={getPaymentMethodOptions(true)}
+                    selectedValue={paymentMethod}
+                    onSelect={(value) => {
+                        setPaymentMethod(value as string);
+                        setIsPaymentMethodSheetOpen(false);
+                    }}
+                />
+            )}
         </div>
     );
 };

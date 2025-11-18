@@ -46,7 +46,6 @@ import { PaymentReceiptPage } from './components/PaymentReceiptPage.tsx';
 import { RegisterPaymentPage } from './components/RegisterPaymentPage.tsx';
 import { SalesPage } from './components/Sales.tsx';
 import { SalesListPage } from './components/SalesList.tsx';
-import { CreditSalesListPage } from './components/CreditSalesList.tsx';
 import { CreditSaleDetailPage } from './components/CreditSaleDetailPage.tsx';
 import { ClientsPage } from './components/ClientsPage.tsx';
 import { NewClientPage } from './components/NewClientPage.tsx';
@@ -201,7 +200,6 @@ const App: React.FC = () => {
                                   <SalesPage />
                                 </ProtectedRoute>
                               } />
-                              <Route path="credit-sales" element={<CreditSalesListPage />} />
                               <Route path="credit-sales/:id" element={
                                 <ProtectedRoute>
                                   <CreditSaleDetailPage />

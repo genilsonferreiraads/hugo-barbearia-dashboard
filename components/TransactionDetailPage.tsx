@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Transaction } from '../types.ts';
 import { useTransactions, useEditTransaction } from '../contexts.tsx';
@@ -12,6 +13,7 @@ export const TransactionDetailPage: React.FC = () => {
     const location = useLocation();
     const { transactions, deleteTransaction, updateTransaction } = useTransactions();
     const { setEditTransactionData, clearEditTransactionData } = useEditTransaction();
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const transaction = transactions.find(t => t.id === Number(id));
     const isProductSale = transaction ? (transaction.type === 'product' || transaction.clientName === 'Venda de Produto') : false;
@@ -128,20 +130,23 @@ export const TransactionDetailPage: React.FC = () => {
         }
     };
 
-    const handleDelete = async () => {
-        const confirmMessage = isProductSale 
-            ? 'Tem certeza que deseja deletar esta venda? Esta ação não pode ser desfeita.'
-            : 'Tem certeza que deseja deletar este serviço? Esta ação não pode ser desfeita.';
-        
-        if (confirm(confirmMessage)) {
-            try {
-                await deleteTransaction(transaction.id);
-                navigate(backRoute);
-            } catch (error) {
-                console.error('Erro ao deletar:', error);
-                alert(isProductSale ? 'Erro ao deletar a venda' : 'Erro ao deletar o serviço');
-            }
+    const handleDelete = () => {
+        setShowDeleteConfirm(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        try {
+            await deleteTransaction(transaction.id);
+            setShowDeleteConfirm(false);
+            navigate(backRoute);
+        } catch (error) {
+            console.error('Erro ao deletar:', error);
+            alert(isProductSale ? 'Erro ao deletar a venda' : 'Erro ao deletar o serviço');
         }
+    };
+
+    const handleCancelDelete = () => {
+        setShowDeleteConfirm(false);
     };
 
     const isScheduled = transaction.clientName.includes('|');
@@ -327,6 +332,73 @@ export const TransactionDetailPage: React.FC = () => {
                     </div>
                 </div>
             </main>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && typeof document !== 'undefined' && createPortal(
+                <div 
+                    className="fixed inset-0 bg-black/60 dark:bg-black/70 z-[99999] flex items-center justify-center p-4 backdrop-blur-sm"
+                    style={{ position: 'fixed', zIndex: 99999 }}
+                    onClick={handleCancelDelete}
+                >
+                    <div 
+                        className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-2xl max-w-md w-full p-5 sm:p-6 transform transition-all"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-start gap-4 mb-5">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                                <Icon name="warning" className="text-red-600 dark:text-red-400 text-xl" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                                    {isProductSale ? 'Excluir Venda' : 'Excluir Atendimento'}
+                                </h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    {isProductSale 
+                                        ? 'Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.'
+                                        : 'Tem certeza que deseja excluir este atendimento? Esta ação não pode ser desfeita.'
+                                    }
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 mb-5 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                            {!isProductSale && (
+                                <p className="text-sm">
+                                    <span className="font-semibold text-gray-900 dark:text-white">Cliente:</span>{' '}
+                                    <span className="text-gray-700 dark:text-gray-300">{getClientName(transaction.clientName)}</span>
+                                </p>
+                            )}
+                            <p className="text-sm">
+                                <span className="font-semibold text-gray-900 dark:text-white">Valor:</span>{' '}
+                                <span className="text-gray-700 dark:text-gray-300">{formatCurrency(transaction.value)}</span>
+                            </p>
+                            {transaction.service && (
+                                <p className="text-sm">
+                                    <span className="font-semibold text-gray-900 dark:text-white">{isProductSale ? 'Produto:' : 'Serviço:'}</span>{' '}
+                                    <span className="text-gray-700 dark:text-gray-300">{transaction.service}</span>
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-3 justify-end">
+                            <button
+                                onClick={handleCancelDelete}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirmDelete}
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
+                            >
+                                <Icon name="delete" className="text-base" />
+                                Excluir
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };
