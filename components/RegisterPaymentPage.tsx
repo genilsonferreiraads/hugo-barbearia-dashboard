@@ -308,17 +308,17 @@ export const RegisterPaymentPage: React.FC = () => {
 
             {/* Payment Method Bottom Sheet (Mobile Only) */}
             {isMobile && (
-                <BottomSheet
-                    isOpen={isPaymentMethodSheetOpen}
-                    onClose={() => setIsPaymentMethodSheetOpen(false)}
-                    title="Selecione o método de pagamento"
-                    options={getPaymentMethodOptions(true)}
-                    selectedValue={paymentMethod}
-                    onSelect={(value) => {
-                        setPaymentMethod(value as string);
+            <BottomSheet
+                isOpen={isPaymentMethodSheetOpen}
+                onClose={() => setIsPaymentMethodSheetOpen(false)}
+                title="Selecione o método de pagamento"
+                options={getPaymentMethodOptions(true)}
+                selectedValue={paymentMethod}
+                onSelect={(value) => {
+                    setPaymentMethod(value as string);
                         setIsPaymentMethodSheetOpen(false);
-                    }}
-                />
+                }}
+            />
             )}
         </div>
     );

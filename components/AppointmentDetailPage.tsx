@@ -72,6 +72,11 @@ export const AppointmentDetailPage: React.FC<AppointmentDetailPageProps> = ({ ap
 
     const { name, whatsapp } = extractClientInfo(currentAppointment.clientName);
     const statusInfo = getStatusColor(currentAppointment.status);
+    const timelineSteps = [
+        { label: 'Confirmado', description: 'Agendamento criado e confirmado', done: true },
+        { label: 'Cliente chegou', description: 'Cliente registrado na recepção', done: currentAppointment.status !== AppointmentStatus.Confirmed },
+        { label: 'Atendimento concluído', description: 'Serviço finalizado e registrado', done: currentAppointment.status === AppointmentStatus.Attended },
+    ];
     const whatsappUrl = whatsapp ? `https://wa.me/55${whatsapp.replace(/\D/g, '')}` : null;
 
     const handleDelete = async () => {
@@ -406,6 +411,35 @@ export const AppointmentDetailPage: React.FC<AppointmentDetailPageProps> = ({ ap
                             </div>
                             <p className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-0.5">{currentAppointment.time.substring(0, 5)}</p>
                             <p className="text-[9px] text-gray-500 dark:text-gray-400">Horário marcado</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Status Timeline */}
+                <div className="animate-slide-in-up card-hover bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 p-4 sm:p-5 mt-2">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Icon name="timeline" className="text-primary text-base" />
+                        <p className="text-xs font-bold text-primary uppercase tracking-wider">Linha do tempo</p>
+                    </div>
+                    <div className="relative">
+                        <div className="absolute left-3 top-2 bottom-2 w-px bg-gradient-to-b from-primary/60 to-transparent dark:from-primary/30"></div>
+                        <div className="space-y-4">
+                            {timelineSteps.map((step, index) => (
+                                <div key={step.label} className="relative pl-8">
+                                    <div className={`absolute left-0 top-1.5 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                        step.done ? 'bg-primary border-primary shadow' : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700'
+                                    }`}>
+                                        {step.done && <Icon name="check" className="text-[10px] text-white" />}
+                                    </div>
+                                    <p className={`text-sm font-semibold ${step.done ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>
+                                        {step.label}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{step.description}</p>
+                                    {index < timelineSteps.length - 1 && (
+                                        <div className="pt-2 text-[10px] uppercase text-gray-300 dark:text-gray-600 tracking-widest">Próximo</div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

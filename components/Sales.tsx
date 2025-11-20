@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProducts, useTransactions, useEditTransaction, useSystemSettings, useCreditSales, useClients } from '../contexts.tsx';
 import { Product, PaymentMethod, Transaction, Client } from '../types.ts';
@@ -42,6 +42,25 @@ const getTodayLocalDate = (): string => {
     return `${year}-${month}-${day}`;
 };
 
+const DEFAULT_CLIENT_NAME = 'Venda de Produto';
+
+const stripClientName = (value?: string): string => {
+    if (!value) return '';
+    return value.split('|')[0]?.trim() || '';
+};
+
+const buildClientDisplayName = (rawName: string, client?: Client | null): string => {
+    const sanitized = stripClientName(rawName);
+
+    if (client) {
+        const baseName = client.fullName?.trim() || sanitized || DEFAULT_CLIENT_NAME;
+        const whatsapp = client.whatsapp?.trim();
+        return whatsapp ? `${baseName}|${whatsapp}` : baseName;
+    }
+
+    return sanitized || DEFAULT_CLIENT_NAME;
+};
+
 export const SalesPage: React.FC = () => {
     const navigate = useNavigate();
     const { products } = useProducts();
@@ -50,6 +69,12 @@ export const SalesPage: React.FC = () => {
     const { settings } = useSystemSettings();
     const { addCreditSale } = useCreditSales();
     const { clients, addClient } = useClients();
+
+    const findClientByName = useCallback((name: string): Client | null => {
+        if (!name || !name.trim()) return null;
+        const normalized = name.trim().toLowerCase();
+        return clients.find(c => c.fullName.toLowerCase() === normalized) || null;
+    }, [clients]);
 
     const isEditing = !!editTransaction && (editTransaction.type === 'product' || editTransaction.clientName === 'Venda de Produto');
 
@@ -158,6 +183,24 @@ export const SalesPage: React.FC = () => {
             initializedTransactionId.current = null;
         }
     }, [isEditing, editTransaction?.id, products.length]); // Only depend on editTransaction.id, not the whole object
+
+    useEffect(() => {
+        if (!isEditing || !editTransaction) return;
+        const baseName = stripClientName(editTransaction.clientName);
+
+        if (!baseName || baseName === DEFAULT_CLIENT_NAME) {
+            setAvulsoClientName('');
+            setAvulsoSelectedClient(null);
+            return;
+        }
+
+        const matchingClient = editTransaction.clientId
+            ? clients.find(c => c.id === editTransaction.clientId)
+            : findClientByName(baseName);
+
+        setAvulsoClientName(baseName);
+        setAvulsoSelectedClient(matchingClient || null);
+    }, [isEditing, editTransaction, clients, findClientByName]);
 
     useEffect(() => {
         if (step === 2 && payments.length === 1 && selectedProducts.size > 0 && payments[0].method) {
@@ -274,8 +317,10 @@ export const SalesPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
+        let resolvedFiadoClient: Client | null = null;
         // Se for venda no fiado
         if (isCreditSale) {
+            resolvedFiadoClient = selectedClient || findClientByName(clientName);
             if (!clientName.trim()) {
                 alert('Por favor, informe o nome do cliente.');
                 return;
@@ -336,7 +381,8 @@ export const SalesPage: React.FC = () => {
                 }));
 
                 await addCreditSale({
-                    clientName: clientName.trim(),
+                    clientName: buildClientDisplayName(clientName.trim(), resolvedFiadoClient),
+                    clientId: resolvedFiadoClient?.id,
                     products: serviceDescription,
                     totalAmount: totalValue,
                     subtotal: subtotal,
@@ -348,15 +394,15 @@ export const SalesPage: React.FC = () => {
 
                 navigate('/credit-sales', { state: { successMessage: 'Venda no fiado registrada com sucesso!' } });
             } else {
-                // Venda avulso - verificar se precisa salvar cliente
-                let finalClientName = avulsoClientName.trim() || 'Venda de Produto';
+                let resolvedAvulsoClient = avulsoSelectedClient || findClientByName(avulsoClientName);
+                let finalClientId = resolvedAvulsoClient?.id;
+                let finalClientName = buildClientDisplayName(avulsoClientName.trim() || DEFAULT_CLIENT_NAME, resolvedAvulsoClient);
                 
+                // Venda avulso - verificar se precisa salvar cliente
                 // Se digitou um nome e não selecionou cliente da base, perguntar se quer salvar
-                if (avulsoClientName.trim() && !avulsoSelectedClient && avulsoClientName.trim() !== 'Venda de Produto') {
+                if (avulsoClientName.trim() && !resolvedAvulsoClient && avulsoClientName.trim() !== DEFAULT_CLIENT_NAME) {
                     // Verificar se o cliente já existe na base
-                    const clientExists = clients.some(c => 
-                        c.fullName.toLowerCase() === avulsoClientName.trim().toLowerCase()
-                    );
+                    const clientExists = !!findClientByName(avulsoClientName.trim());
                     
                     if (!clientExists) {
                         // Perguntar se quer salvar como cliente
@@ -378,7 +424,7 @@ export const SalesPage: React.FC = () => {
                                     if (numbers.length < 10 || numbers.length > 11) {
                                         alert('WhatsApp inválido. O cliente não foi salvo, mas a venda foi registrada.');
                                     } else {
-                                        await addClient({
+                                        const newClient = await addClient({
                                             fullName: avulsoClientName.trim(),
                                             whatsapp: whatsapp.trim(),
                                             nickname: undefined,
@@ -386,6 +432,11 @@ export const SalesPage: React.FC = () => {
                                             cpf: undefined,
                                         });
                                         alert('Cliente salvo com sucesso!');
+                                        resolvedAvulsoClient = newClient;
+                                        finalClientId = newClient.id;
+                                        finalClientName = buildClientDisplayName(newClient.fullName, newClient);
+                                        setAvulsoSelectedClient(newClient);
+                                        setAvulsoClientName(newClient.fullName);
                                     }
                                 } catch (error: any) {
                                     console.error('Erro ao salvar cliente:', error);
@@ -401,6 +452,7 @@ export const SalesPage: React.FC = () => {
                 // Create new transaction
                 const transactionData: Omit<Transaction, 'id' | 'created_at'> = {
                     clientName: finalClientName,
+                    clientId: finalClientId,
                     service: serviceDescription,
                     paymentMethod: payments.map(p => p.method).join(', '),
                     subtotal: subtotal,
@@ -470,11 +522,11 @@ export const SalesPage: React.FC = () => {
                     {/* Progress Bar - Mobile only */}
                     {isMobile && (
                         <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden mt-3">
-                            <div 
-                                className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
-                                style={{ width: `${progressPercentage}%` }}
-                            />
-                        </div>
+                        <div 
+                            className="bg-gradient-to-r from-primary to-primary/80 h-full transition-all duration-500 ease-out"
+                            style={{ width: `${progressPercentage}%` }}
+                        />
+                    </div>
                     )}
                 </div>
             </header>
@@ -496,49 +548,49 @@ export const SalesPage: React.FC = () => {
                                 <span className="text-xs text-gray-500 dark:text-gray-400">(Opcional)</span>
                             </div>
                             
-                            <ClientSearchField
-                                onSelectClient={(client) => {
-                                    setAvulsoSelectedClient(client);
-                                    if (client) {
-                                        setAvulsoClientName(client.fullName);
-                                    } else {
-                                        setAvulsoClientName('');
-                                    }
-                                }}
-                                onValueChange={(name) => {
-                                    setAvulsoClientName(name);
-                                    if (!name.trim()) {
-                                        setAvulsoSelectedClient(null);
-                                    }
-                                }}
-                                value={avulsoClientName}
+                                        <ClientSearchField
+                                            onSelectClient={(client) => {
+                                                setAvulsoSelectedClient(client);
+                                                if (client) {
+                                                    setAvulsoClientName(client.fullName);
+                                                } else {
+                                                    setAvulsoClientName('');
+                                                }
+                                            }}
+                                            onValueChange={(name) => {
+                                                setAvulsoClientName(name);
+                                                if (!name.trim()) {
+                                                    setAvulsoSelectedClient(null);
+                                                }
+                                            }}
+                                            value={avulsoClientName}
                                 placeholder="Buscar cliente ou digite o nome..."
-                                className="w-full"
+                                            className="w-full"
                                 showAddButton={true}
                             />
-                        </div>
+                                            </div>
 
                         {/* Produtos */}
                         <div className="bg-white dark:bg-gray-900/50 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
                             <div className="flex items-center gap-2 mb-2">
                                 <Icon name="shopping_bag" className="text-primary text-xl" />
                                 <h2 className="text-base font-bold text-gray-900 dark:text-white">Produtos</h2>
-                            </div>
-
+                                </div>
+                            
                             {/* Search Bar */}
-                            <div className="relative">
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600">
-                                    <Icon name="search" className="text-lg" />
-                                </span>
-                                <input
-                                    type="text"
-                                    className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 pl-10 pr-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
-                                    placeholder="Digite o nome do produto..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    autoFocus
-                                />
-                            </div>
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600">
+                                            <Icon name="search" className="text-lg" />
+                                        </span>
+                                        <input
+                                            type="text"
+                                            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-10 pl-10 pr-3 text-sm font-normal text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all"
+                                            placeholder="Digite o nome do produto..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            autoFocus
+                                        />
+                                    </div>
 
                             {/* Empty State - Show when no search and no products selected */}
                             {!searchQuery.trim() && selectedProducts.size === 0 && (
@@ -551,7 +603,7 @@ export const SalesPage: React.FC = () => {
                                             <div className="absolute -top-1 -right-1 flex items-center justify-center size-8 rounded-full bg-blue-500 border-4 border-white dark:border-gray-900">
                                                 <Icon name="search" className="text-white text-base" />
                                             </div>
-                                        </div>
+                            </div>
                                         
                                         <div>
                                             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
@@ -583,12 +635,12 @@ export const SalesPage: React.FC = () => {
                                             <div className="flex items-center justify-center size-8 rounded-lg bg-primary/10 dark:bg-primary/20">
                                                 <Icon name="search" className="text-primary text-lg" />
                                             </div>
-                                            <div>
+                                        <div>
                                                 <h3 className="text-sm font-bold text-gray-900 dark:text-white">Resultados da Pesquisa</h3>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
-                                                </p>
-                                            </div>
+                                                {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
+                                            </p>
+                                        </div>
                                         </div>
                                     </div>
 
@@ -631,7 +683,7 @@ export const SalesPage: React.FC = () => {
                                                             </div>
 
                                                             {/* Product Info */}
-                                                            <div className="flex-1 min-w-0">
+                                                        <div className="flex-1 min-w-0">
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="flex-1 min-w-0">
                                                                         <h4 className={`font-bold text-base mb-1 truncate ${
@@ -664,16 +716,16 @@ export const SalesPage: React.FC = () => {
                                                                     </div>
 
                                                                     {/* Quantity Badge */}
-                                                                    {isSelected && selectedItem && (
+                                                                {isSelected && selectedItem && (
                                                                         <div className="flex items-center gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-primary/20 shadow-sm">
                                                                             <Icon name="shopping_bag" className="text-primary text-sm" />
                                                                             <span className="text-sm font-bold text-primary">
                                                                                 {selectedItem.quantity}x
-                                                                            </span>
+                                                                    </span>
                                                                         </div>
-                                                                    )}
-                                                                </div>
+                                                                )}
                                                             </div>
+                                                        </div>
                                                         </div>
 
                                                         {/* Selected indicator line */}
@@ -823,9 +875,9 @@ export const SalesPage: React.FC = () => {
                                     <span>Continuar</span>
                                     <Icon name="arrow_forward" className="text-base" />
                                 </button>
-                            </div>
+                                    </div>
                         )}
-                    </div>
+                                    </div>
 
                     {/* Coluna Direita - Carrinho e Pagamento (Desktop sempre visível, Mobile Step 2) */}
                     <div className={`lg:col-span-1 ${step === 1 && isMobile ? 'hidden' : ''}`}>
@@ -870,38 +922,38 @@ export const SalesPage: React.FC = () => {
                                 {/* Desconto */}
                                 {selectedProducts.size > 0 && (
                                     <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-800">
-                                        <label className="block space-y-2">
-                                            <p className="text-xs font-semibold text-gray-900 dark:text-white">Desconto (Opcional)</p>
-                                            <div className="relative">
-                                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400 text-sm font-medium">R$</span>
-                                                <input 
-                                                    type="text"
-                                                    className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-9 pl-10 pr-3 text-sm font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all" 
-                                                    placeholder="0,00"
-                                                    value={discount}
-                                                    onChange={(e) => setDiscount(formatDiscountInput(e.target.value))}
-                                                />
-                                            </div>
-                                        </label>
+                                <label className="block space-y-2">
+                                    <p className="text-xs font-semibold text-gray-900 dark:text-white">Desconto (Opcional)</p>
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400 text-sm font-medium">R$</span>
+                                        <input 
+                                            type="text"
+                                            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 h-9 pl-10 pr-3 text-sm font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary focus:outline-0 focus:ring-3 focus:ring-primary/20 transition-all" 
+                                            placeholder="0,00"
+                                            value={discount}
+                                            onChange={(e) => setDiscount(formatDiscountInput(e.target.value))}
+                                        />
+                                    </div>
+                                </label>
 
                                         {/* Resumo de valores */}
                                         <div className="space-y-2 pt-3">
                                             <div className="flex justify-between items-center text-sm">
                                                 <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
                                                 <span className="font-semibold text-gray-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-                                            </div>
+                            </div>
                                             {discountValue > 0 && (
                                                 <div className="flex justify-between items-center text-sm">
                                                     <span className="text-gray-600 dark:text-gray-400">Desconto</span>
                                                     <span className="font-semibold text-red-600 dark:text-red-500">- R$ {discountValue.toFixed(2).replace('.', ',')}</span>
-                                                </div>
-                                            )}
+                        </div>
+                    )}
                                             <div className="border-t border-gray-200 dark:border-gray-700 pt-2 flex justify-between items-center">
                                                 <span className="text-gray-900 dark:text-white font-bold">Total</span>
                                                 <span className="text-xl font-black text-primary">R$ {totalValue.toFixed(2).replace('.', ',')}</span>
-                                            </div>
-                                        </div>
                                     </div>
+                                    </div>
+                                </div>
                                 )}
                             </div>
 
@@ -914,13 +966,13 @@ export const SalesPage: React.FC = () => {
                                     </div>
 
                                     {/* Opções de Pagamento */}
-                                    <div className="space-y-3">
-                                        <div>
+                            <div className="space-y-3">
+                                <div>
                                             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Formas de Pagamento</h3>
                                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Selecione como será realizado o pagamento</p>
-                                        </div>
+                                </div>
 
-                                        {/* Opção de Fiado (se habilitada) */}
+                                {/* Opção de Fiado (se habilitada) */}
                                 {settings.creditSalesEnabled && (
                                     <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
                                         <label className="flex items-center gap-3 cursor-pointer">
@@ -964,14 +1016,14 @@ export const SalesPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                        {!isCreditSale && (
-                                            <div className="space-y-3">
-                                                {payments.map((payment, index) => (
+                                {!isCreditSale && (
+                                <div className="space-y-3">
+                                    {payments.map((payment, index) => (
                                                     <div key={payment.id} className="space-y-3">
-                                                        {payments.length > 1 && (
-                                                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pagamento {index + 1}</p>
-                                                        )}
-                                                        
+                                            {payments.length > 1 && (
+                                                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pagamento {index + 1}</p>
+                                            )}
+                                            
                                                         {/* Se só tem 1 método, mostrar só o seletor */}
                                                         {payments.length === 1 ? (
                                                             <div className="space-y-2 relative">
@@ -1036,9 +1088,9 @@ export const SalesPage: React.FC = () => {
                                                             <div className="bg-white dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-800">
                                                                 <div className="grid grid-cols-2 gap-3">
                                                                     <div className="space-y-1.5 relative">
-                                                                        <label className="text-xs font-semibold text-gray-900 dark:text-white block">Método</label>
-                                                                        <button
-                                                                            type="button"
+                                                    <label className="text-xs font-semibold text-gray-900 dark:text-white block">Método</label>
+                                                    <button
+                                                        type="button"
                                                                             onClick={() => {
                                                                                 if (isMobile) {
                                                                                     setOpenPaymentMethodSheet(payment.id);
@@ -1047,12 +1099,12 @@ export const SalesPage: React.FC = () => {
                                                                                 }
                                                                             }}
                                                                             className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-medium text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
-                                                                        >
-                                                                            <span className={payment.method ? '' : 'text-gray-400 dark:text-gray-500'}>
-                                                                                {payment.method || 'Selecione...'}
-                                                                            </span>
+                                                    >
+                                                        <span className={payment.method ? '' : 'text-gray-400 dark:text-gray-500'}>
+                                                            {payment.method || 'Selecione...'}
+                                                        </span>
                                                                             <Icon name="expand_more" className="text-gray-400 dark:text-gray-500 text-base" />
-                                                                        </button>
+                                                    </button>
 
                                                                         {/* Dropdown Menu - Desktop only */}
                                                                         {!isMobile && openPaymentDropdown === payment.id && (
@@ -1091,37 +1143,37 @@ export const SalesPage: React.FC = () => {
                                                                                 </div>
                                                                             </>
                                                                         )}
-                                                                    </div>
+                                                </div>
 
-                                                                    <div className="space-y-1.5">
-                                                                        <label className="text-xs font-semibold text-gray-900 dark:text-white block">Valor</label>
-                                                                        <div className="relative">
-                                                                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
-                                                                            <input
-                                                                                type="text"
-                                                                                placeholder="0,00"
-                                                                                value={payment.amount}
-                                                                                onChange={e => handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value))}
+                                                <div className="space-y-1.5">
+                                                    <label className="text-xs font-semibold text-gray-900 dark:text-white block">Valor</label>
+                                                    <div className="relative">
+                                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-600 text-sm">R$</span>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="0,00"
+                                                            value={payment.amount}
+                                                            onChange={e => handlePaymentChange(payment.id, 'amount', formatDiscountInput(e.target.value))}
                                                                                 className="w-full h-9 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-10 pr-3 text-xs font-semibold text-gray-900 dark:text-white focus:border-primary focus:outline-0 focus:ring-2 focus:ring-primary/20 transition-all"
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
 
                                                                 <div className="flex justify-end pt-2">
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => handleRemovePayment(payment.id)} 
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => handleRemovePayment(payment.id)} 
                                                                         className="flex items-center gap-1 text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium transition-colors text-xs"
-                                                                    >
+                                                    >
                                                                         <Icon name="delete" className="text-sm" />
-                                                                        <span>Remover</span>
-                                                                    </button>
+                                                        <span>Remover</span>
+                                                    </button>
                                                                 </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
 
                                                 {/* Botão Adicionar Forma de Pagamento */}
                                                 {payments.length < 2 && (
@@ -1134,8 +1186,8 @@ export const SalesPage: React.FC = () => {
                                                         <span>Adicionar Forma de Pagamento</span>
                                                     </button>
                                                 )}
-                                            </div>
-                                        )}
+                                </div>
+                                )}
 
                                 {/* Campos de Fiado */}
                                 {isCreditSale && settings.creditSalesEnabled && (
@@ -1155,7 +1207,7 @@ export const SalesPage: React.FC = () => {
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-xs text-gray-500 dark:text-gray-400">Cliente</p>
                                                         <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{clientName}</p>
-                                                    </div>
+                                            </div>
                                                 </div>
                                             ) : (
                                                 <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800/30">
@@ -1250,28 +1302,28 @@ export const SalesPage: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
-                                    </div>
+                            </div>
 
                                     {/* Botão Finalizar Venda */}
-                                    <button 
-                                        type="submit"
+                                <button 
+                                    type="submit"
                                         disabled={isSubmitting || (!isCreditSale && payments.some(p => !p.method)) || (isCreditSale && !clientName.trim())}
                                         className="w-full px-6 h-11 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        {isSubmitting ? (
-                                            <>
-                                                <span className="animate-spin">⏳</span>
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <span className="animate-spin">⏳</span>
                                                 <span>{isEditing ? 'Salvando...' : 'Processando...'}</span>
-                                            </>
-                                        ) : (
-                                            <>
+                                        </>
+                                    ) : (
+                                        <>
                                                 <Icon name="check_circle" className="text-lg" />
-                                                <span>{isEditing ? 'Salvar Alterações' : 'Confirmar Venda'}</span>
-                                            </>
-                                        )}
-                                    </button>
+                                            <span>{isEditing ? 'Salvar Alterações' : 'Confirmar Venda'}</span>
+                                        </>
+                                    )}
+                                </button>
                                 </div>
-                            )}
+                        )}
                         </div>
                     </div>
                 </form>

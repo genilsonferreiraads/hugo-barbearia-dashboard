@@ -25,6 +25,14 @@ const formatLocalDate = (date: Date): string => {
 
 type DateFilter = 'day' | 'week' | 'month' | 'year' | 'all';
 
+const dateFilterOptions: Array<{ id: DateFilter; label: string; description: string }> = [
+    { id: 'day', label: 'Hoje', description: 'Fluxo das últimas 24h' },
+    { id: 'week', label: 'Semana', description: 'Resumo dos últimos 7 dias' },
+    { id: 'month', label: 'Mês', description: 'Visão do mês atual' },
+    { id: 'year', label: 'Ano', description: 'Desempenho anual' },
+    { id: 'all', label: 'Geral', description: 'Histórico completo' },
+];
+
 // Helper to check if installment is paid (works with enum or string)
 const isPaid = (status: InstallmentStatus | string): boolean => {
     return status === InstallmentStatus.Paid || status === 'Paga' || String(status).trim() === 'Paga';
@@ -38,6 +46,8 @@ export const FinancialPage: React.FC = () => {
     const { categories } = useExpenseCategories();
 
     const [dateFilter, setDateFilter] = useState<DateFilter>('month');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
 
     // Recarregar dados quando necessário
     useEffect(() => {
@@ -84,12 +94,15 @@ export const FinancialPage: React.FC = () => {
     // Filter expenses by date range
     const filteredExpenses = useMemo(() => {
         const dateRange = getDateRange(dateFilter);
-        if (!dateRange) return expenses;
-        
         return expenses.filter(expense => {
-            return expense.date >= dateRange.start && expense.date <= dateRange.end;
+            const inRange = !dateRange || (expense.date >= dateRange.start && expense.date <= dateRange.end);
+            const matchesCategory = categoryFilter === 'all' || expense.category === categoryFilter;
+            const matchesSearch = !searchQuery.trim()
+                || expense.description.toLowerCase().includes(searchQuery.toLowerCase())
+                || (expense.category && expense.category.toLowerCase().includes(searchQuery.toLowerCase()));
+            return inRange && matchesCategory && matchesSearch;
         });
-    }, [expenses, dateFilter]);
+    }, [expenses, dateFilter, categoryFilter, searchQuery]);
 
     // Calculate revenues
     const revenues = useMemo(() => {
@@ -161,15 +174,30 @@ export const FinancialPage: React.FC = () => {
 
     // Get filter label
     const getFilterLabel = (filter: DateFilter): string => {
-        switch(filter) {
-            case 'day': return 'Hoje';
-            case 'week': return 'Semana';
-            case 'month': return 'Mês';
-            case 'year': return 'Ano';
-            case 'all': return 'Geral';
-            default: return 'Mês';
-        }
+        const option = dateFilterOptions.find(opt => opt.id === filter);
+        return option ? option.label : 'Mês';
     };
+
+    const getFilterDescription = (filter: DateFilter): string => {
+        const option = dateFilterOptions.find(opt => opt.id === filter);
+        return option ? option.description : 'Visão do período atual';
+    };
+
+    const getDateRangeText = () => {
+        const range = getDateRange(dateFilter);
+        if (!range) return 'Histórico completo';
+        const start = new Date(range.start + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        const end = new Date(range.end + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        if (start === end) return `Hoje (${end})`;
+        return `${start} até ${end}`;
+    };
+
+    const activeFiltersCount = useMemo(() => {
+        let count = 0;
+        if (searchQuery.trim()) count++;
+        if (categoryFilter !== 'all') count++;
+        return count;
+    }, [searchQuery, categoryFilter]);
 
     return (
         <div className="mx-auto max-w-7xl w-full">
@@ -192,106 +220,164 @@ export const FinancialPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* Date Filter */}
-            <div className="mb-6 flex flex-wrap gap-2">
-                {(['day', 'week', 'month', 'year', 'all'] as DateFilter[]).map((filter) => (
+            {/* Overview Panel */}
+            <section className="bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-5 sm:p-6 mb-8 space-y-6">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-[0.3em] mb-1">Visão do caixa</p>
+                        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">{getFilterDescription(dateFilter)}</h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{getDateRangeText()}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {dateFilterOptions.map((option) => (
+                            <button
+                                key={option.id}
+                                onClick={() => setDateFilter(option.id)}
+                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all border ${
+                                    dateFilter === option.id
+                                        ? 'bg-primary text-white border-primary shadow-md'
+                                        : 'bg-transparent border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-primary/60'
+                                }`}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                    <div className="space-y-3">
+                        <div className="relative">
+                            <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 text-lg" />
+                            <input
+                                type="text"
+                                placeholder="Buscar despesas..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                >
+                                    <Icon name="close" className="text-lg" />
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <select
+                                value={categoryFilter}
+                                onChange={(e) => setCategoryFilter(e.target.value)}
+                                className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-900 dark:text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                            >
+                                <option value="all">Todas as categorias</option>
+                                {categories.map((category) => (
+                                    <option key={category.id} value={category.name}>
+                                        {category.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+                                <span className="font-semibold text-gray-800 dark:text-gray-100">{activeFiltersCount}</span> filtro{activeFiltersCount === 1 ? '' : 's'} ativo{activeFiltersCount === 1 ? '' : 's'}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-3">
+                            <p className="text-[11px] uppercase text-green-700 dark:text-green-300 font-semibold mb-1">Receitas</p>
+                            <p className="text-xl font-bold text-green-900 dark:text-green-100">{formatCurrency(revenues)}</p>
+                        </div>
+                        <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
+                            <p className="text-[11px] uppercase text-red-700 dark:text-red-300 font-semibold mb-1">Despesas</p>
+                            <p className="text-xl font-bold text-red-900 dark:text-red-100">{formatCurrency(totalExpenses)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Revenue Card */}
                     <button
-                        key={filter}
-                        onClick={() => setDateFilter(filter)}
-                        className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                            dateFilter === filter
-                                ? 'bg-primary text-white'
-                                : 'bg-white dark:bg-gray-900/50 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                        onClick={() => navigate(`/financial/revenues?filter=${dateFilter}`)}
+                        className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-6 hover:bg-green-100 dark:hover:bg-green-900/30 transition-all cursor-pointer hover:shadow-lg text-left"
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-lg">
+                                    <Icon name="trending_up" className="text-green-600 dark:text-green-400" />
+                                </div>
+                                <span className="text-sm font-medium text-green-700 dark:text-green-300">Receitas</span>
+                            </div>
+                            <Icon name="chevron_right" className="text-green-600 dark:text-green-400" />
+                        </div>
+                        <p className="text-3xl font-black text-green-900 dark:text-green-100">
+                            {formatCurrency(revenues)}
+                        </p>
+                    </button>
+
+                    {/* Expenses Card */}
+                    <button
+                        onClick={() => navigate(`/financial/expenses-list?filter=${dateFilter}`)}
+                        className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-6 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all cursor-pointer hover:shadow-lg text-left"
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+                                    <Icon name="trending_down" className="text-red-600 dark:text-red-400" />
+                                </div>
+                                <span className="text-sm font-medium text-red-700 dark:text-red-300">Despesas</span>
+                            </div>
+                            <Icon name="chevron_right" className="text-red-600 dark:text-red-400" />
+                        </div>
+                        <p className="text-3xl font-black text-red-900 dark:text-red-100">
+                            {formatCurrency(totalExpenses)}
+                        </p>
+                    </button>
+
+                    {/* Net Profit Card */}
+                    <button
+                        onClick={() => navigate(`/financial/balance?filter=${dateFilter}`)}
+                        className={`rounded-xl border p-6 hover:shadow-lg transition-all cursor-pointer text-left ${
+                            netProfit >= 0
+                                ? 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                                : 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30'
                         }`}
                     >
-                        {getFilterLabel(filter)}
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <div className={`p-2 rounded-lg ${
+                                    netProfit >= 0
+                                        ? 'bg-blue-100 dark:bg-blue-900/50'
+                                        : 'bg-orange-100 dark:bg-orange-900/50'
+                                }`}>
+                                    <Icon 
+                                        name={netProfit >= 0 ? "account_balance" : "warning"} 
+                                        className={netProfit >= 0 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"} 
+                                    />
+                                </div>
+                                <span className={`text-sm font-medium ${
+                                    netProfit >= 0
+                                        ? 'text-blue-700 dark:text-blue-300'
+                                        : 'text-orange-700 dark:text-orange-300'
+                                }`}>
+                                    Lucro Líquido
+                                </span>
+                            </div>
+                            <Icon 
+                                name="chevron_right" 
+                                className={netProfit >= 0 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"} 
+                            />
+                        </div>
+                        <p className={`text-3xl font-black ${
+                            netProfit >= 0
+                                ? 'text-blue-900 dark:text-blue-100'
+                                : 'text-orange-900 dark:text-orange-100'
+                        }`}>
+                            {formatCurrency(netProfit)}
+                        </p>
                     </button>
-                ))}
-            </div>
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                {/* Revenue Card */}
-                <button
-                    onClick={() => navigate(`/financial/revenues?filter=${dateFilter}`)}
-                    className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-6 hover:bg-green-100 dark:hover:bg-green-900/30 transition-all cursor-pointer hover:shadow-lg text-left"
-                >
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                            <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-lg">
-                                <Icon name="trending_up" className="text-green-600 dark:text-green-400" />
-                            </div>
-                            <span className="text-sm font-medium text-green-700 dark:text-green-300">Receitas</span>
-                        </div>
-                        <Icon name="chevron_right" className="text-green-600 dark:text-green-400" />
-                    </div>
-                    <p className="text-3xl font-black text-green-900 dark:text-green-100">
-                        {formatCurrency(revenues)}
-                    </p>
-                </button>
-
-                {/* Expenses Card */}
-                <button
-                    onClick={() => navigate(`/financial/expenses-list?filter=${dateFilter}`)}
-                    className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-6 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all cursor-pointer hover:shadow-lg text-left"
-                >
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
-                                <Icon name="trending_down" className="text-red-600 dark:text-red-400" />
-                            </div>
-                            <span className="text-sm font-medium text-red-700 dark:text-red-300">Despesas</span>
-                        </div>
-                        <Icon name="chevron_right" className="text-red-600 dark:text-red-400" />
-                    </div>
-                    <p className="text-3xl font-black text-red-900 dark:text-red-100">
-                        {formatCurrency(totalExpenses)}
-                    </p>
-                </button>
-
-                {/* Net Profit Card */}
-                <button
-                    onClick={() => navigate(`/financial/balance?filter=${dateFilter}`)}
-                    className={`rounded-xl border p-6 hover:shadow-lg transition-all cursor-pointer text-left ${
-                        netProfit >= 0
-                            ? 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30'
-                            : 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30'
-                    }`}
-                >
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                            <div className={`p-2 rounded-lg ${
-                                netProfit >= 0
-                                    ? 'bg-blue-100 dark:bg-blue-900/50'
-                                    : 'bg-orange-100 dark:bg-orange-900/50'
-                            }`}>
-                                <Icon 
-                                    name={netProfit >= 0 ? "account_balance" : "warning"} 
-                                    className={netProfit >= 0 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"} 
-                                />
-                            </div>
-                            <span className={`text-sm font-medium ${
-                                netProfit >= 0
-                                    ? 'text-blue-700 dark:text-blue-300'
-                                    : 'text-orange-700 dark:text-orange-300'
-                            }`}>
-                                Lucro Líquido
-                            </span>
-                        </div>
-                        <Icon 
-                            name="chevron_right" 
-                            className={netProfit >= 0 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"} 
-                        />
-                    </div>
-                    <p className={`text-3xl font-black ${
-                        netProfit >= 0
-                            ? 'text-blue-900 dark:text-blue-100'
-                            : 'text-orange-900 dark:text-orange-100'
-                    }`}>
-                        {formatCurrency(netProfit)}
-                    </p>
-                </button>
-            </div>
+                </div>
+            </section>
 
             {/* Quick Expenses List */}
             <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#2a1a15]">

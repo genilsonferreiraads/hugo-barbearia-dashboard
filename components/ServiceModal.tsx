@@ -34,10 +34,10 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, ser
       }
     };
     if (isOpen) {
-      window.addEventListener('keydown', handleEsc);
+        window.addEventListener('keydown', handleEsc);
     }
     return () => {
-      window.removeEventListener('keydown', handleEsc);
+        window.removeEventListener('keydown', handleEsc);
     };
   }, [isOpen, onClose]);
 
@@ -72,7 +72,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, ser
     
     setPrice(intPart + ',' + decimalPart);
   };
-
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -84,22 +84,22 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, ser
     const priceNumber = parseFloat(price.replace(',', '.'));
     if (isNaN(priceNumber) || priceNumber <= 0) {
       alert("Por favor, preencha um preço válido maior que zero.");
-      return;
+        return;
     }
-
+    
     try {
       setIsSubmitting(true);
       if (service) {
         await updateService({ ...service, name: name.trim(), price: priceNumber });
       } else {
         await addService({ name: name.trim(), price: priceNumber });
-      }
-      onClose();
+        }
+        onClose();
       setName('');
       setPrice('');
     } catch (error: any) {
-      console.error("Failed to save service:", error);
-      alert(`Falha ao salvar serviço: ${error.message || 'Erro desconhecido.'}`);
+        console.error("Failed to save service:", error);
+        alert(`Falha ao salvar serviço: ${error.message || 'Erro desconhecido.'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -149,7 +149,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, ser
                 </h2>
                 <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
                   {service ? 'Atualize as informações' : 'Cadastre um novo serviço'}
-                </p>
+          </p>
               </div>
             </div>
             <button
@@ -157,7 +157,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, ser
               className="flex items-center justify-center w-9 h-9 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all"
             >
               <Icon name="close" className="text-xl" />
-            </button>
+          </button>
           </div>
         </div>
 
@@ -200,14 +200,14 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, ser
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 font-bold text-sm">
                   R$
                 </span>
-                <input
-                  required
-                  type="text"
+              <input
+                required
+                type="text"
                   className="w-full h-10 pl-10 pr-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-3 focus:ring-primary/20 transition-all font-bold text-base"
                   placeholder="0,00"
-                  value={price}
+                value={price}
                   onChange={(e) => handlePriceChange(e.target.value)}
-                />
+              />
               </div>
             </label>
           </div>

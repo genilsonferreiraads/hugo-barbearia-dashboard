@@ -44,11 +44,11 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
 
     const handleClose = useCallback(() => {
         if (!isDesktop) {
-            if (sheetRef.current) {
-                sheetRef.current.style.transform = 'translateY(100%)';
-            }
-            if (overlayRef.current) {
-                overlayRef.current.style.opacity = '0';
+        if (sheetRef.current) {
+            sheetRef.current.style.transform = 'translateY(100%)';
+        }
+        if (overlayRef.current) {
+            overlayRef.current.style.opacity = '0';
             }
         }
         setTimeout(() => {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useClients, useTransactions, useAppointments, useCreditSales } from '../contexts.tsx';
-import { Client } from '../types.ts';
+import { Client, AppointmentStatus } from '../types.ts';
 import { Toast, ToastType } from './Toast.tsx';
 
 const Icon = ({ name, className, style }: { name: string; className?: string; style?: React.CSSProperties }) => 
@@ -14,6 +14,13 @@ const getTodayLocalDate = (): string => {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+};
+
+const dateFromISO = (date?: string, time?: string): Date | null => {
+    if (!date) return null;
+    const isoString = time ? `${date}T${time}` : `${date}T00:00:00`;
+    const parsed = new Date(isoString);
+    return isNaN(parsed.getTime()) ? null : parsed;
 };
 
 type ViewMode = 'all' | 'new' | 'appointments' | 'credit-sales';
@@ -97,6 +104,114 @@ export const ClientsPage: React.FC = () => {
             topSpender
         };
     }, [clients, appointments, creditSales, transactions]);
+
+    const clientEngagement = useMemo(() => {
+        type Stats = {
+            visitCount: number;
+            totalSpent: number;
+            lastVisit: Date | null;
+            paymentFrequency: Record<string, number>;
+        };
+
+        const ensureStats = (clientId: number, map: Map<number, Stats>): Stats => {
+            if (!map.has(clientId)) {
+                map.set(clientId, {
+                    visitCount: 0,
+                    totalSpent: 0,
+                    lastVisit: null,
+                    paymentFrequency: {}
+                });
+            }
+            return map.get(clientId)!;
+        };
+
+        const statsMap = new Map<number, Stats>();
+        clients.forEach(client => ensureStats(client.id, statsMap));
+
+        const updateLastVisit = (stats: Stats, referenceDate: Date | null) => {
+            if (!referenceDate) return;
+            if (!stats.lastVisit || referenceDate.getTime() > stats.lastVisit.getTime()) {
+                stats.lastVisit = referenceDate;
+            }
+        };
+
+        transactions.forEach(tx => {
+            if (!tx.clientId) return;
+            const stats = ensureStats(tx.clientId, statsMap);
+            stats.totalSpent += tx.value;
+            if (tx.paymentMethod) {
+                stats.paymentFrequency[tx.paymentMethod] = (stats.paymentFrequency[tx.paymentMethod] || 0) + 1;
+            }
+            const visitDate = dateFromISO(tx.date);
+            if (tx.type !== 'product') {
+                stats.visitCount += 1;
+            }
+            updateLastVisit(stats, visitDate);
+        });
+
+        appointments.forEach(apt => {
+            if (!apt.clientId) return;
+            if (![AppointmentStatus.Arrived, AppointmentStatus.Attended].includes(apt.status)) return;
+            const stats = ensureStats(apt.clientId, statsMap);
+            const aptDate = dateFromISO(apt.date, apt.time);
+            stats.visitCount = Math.max(stats.visitCount, 1);
+            updateLastVisit(stats, aptDate);
+        });
+
+        let recurringCount = 0;
+        let firstVisitCount = 0;
+        let noVisitCount = 0;
+
+        statsMap.forEach(stats => {
+            if (stats.visitCount >= 2) {
+                recurringCount += 1;
+            } else if (stats.visitCount === 1) {
+                firstVisitCount += 1;
+            } else {
+                noVisitCount += 1;
+            }
+        });
+
+        const MS_DAY = 1000 * 60 * 60 * 24;
+        const now = new Date();
+
+        const inactiveClients = Array.from(statsMap.entries())
+            .map(([clientId, stats]) => {
+                if (!stats.lastVisit) return null;
+                const daysAway = Math.floor((now.getTime() - stats.lastVisit.getTime()) / MS_DAY);
+                const client = clients.find(c => c.id === clientId);
+                if (!client || daysAway < 30) return null;
+                return {
+                    client,
+                    stats,
+                    daysAway
+                };
+            })
+            .filter((item): item is { client: Client; stats: Stats; daysAway: number } => item !== null)
+            .sort((a, b) => b.daysAway - a.daysAway)
+            .slice(0, 5);
+
+        const topSpenders = (
+            Array.from(statsMap.entries())
+            .map(([clientId, stats]) => ({
+                client: clients.find(c => c.id === clientId),
+                totalSpent: stats.totalSpent,
+                lastVisit: stats.lastVisit
+            }))
+            .filter(item => item.client && item.totalSpent > 0) as { client: Client; totalSpent: number; lastVisit: Date | null }[]
+        )
+            .sort((a, b) => b.totalSpent - a.totalSpent)
+            .slice(0, 5);
+
+        return {
+            statsMap,
+            recurringCount,
+            firstVisitCount,
+            noVisitCount,
+            inactiveClients,
+            topSpenders
+        };
+    }, [clients, transactions, appointments]);
     
     // Filtrar clientes baseado no viewMode e searchTerm
     const filteredClients = useMemo(() => {
@@ -240,6 +355,19 @@ export const ClientsPage: React.FC = () => {
         return `R$ ${parts.join(',')}`;
     };
 
+    const formatShortDate = (date: Date | null): string => {
+        if (!date) return 'Sem registro';
+        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    };
+
+    const {
+        recurringCount,
+        firstVisitCount,
+        noVisitCount,
+        inactiveClients,
+        topSpenders
+    } = clientEngagement;
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-background-light to-gray-50 dark:from-background-dark dark:to-gray-900">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -347,6 +475,125 @@ export const ClientsPage: React.FC = () => {
                                             <p className="text-gray-600 dark:text-gray-400 text-xs font-medium">Total</p>
                                             <p className="text-gray-900 dark:text-white text-sm sm:text-base font-bold">{formatCurrency(metrics.topSpender.amount)}</p>
                                         </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Relationship & Retention Insights */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+                                <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-gray-800 shadow-sm">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Novos x Recorrentes</p>
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Perfil dos últimos atendimentos</h3>
+                                        </div>
+                                        <Icon name="stacked_bar_chart" className="text-primary text-2xl" />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                                                <span>Recorrentes</span>
+                                                <span>{recurringCount}</span>
+                                            </div>
+                                            <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                                                <div
+                                                    className="h-full bg-primary rounded-full transition-all"
+                                                    style={{
+                                                        width: `${recurringCount + firstVisitCount === 0 ? 0 : (recurringCount / (recurringCount + firstVisitCount)) * 100}%`
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-sm">
+                                            <div className="flex-1 bg-gray-50 dark:bg-gray-800/60 rounded-lg p-3">
+                                                <p className="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Primeira visita</p>
+                                                <p className="text-lg font-bold text-gray-900 dark:text-white">{firstVisitCount}</p>
+                                            </div>
+                                            <div className="flex-1 bg-gray-50 dark:bg-gray-800/60 rounded-lg p-3">
+                                                <p className="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Recorrentes</p>
+                                                <p className="text-lg font-bold text-gray-900 dark:text-white">{recurringCount}</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {noVisitCount > 0 
+                                                ? `${noVisitCount} cliente${noVisitCount > 1 ? 's' : ''} ainda não retornou após o cadastro.`
+                                                : 'Todos os clientes já possuem histórico registrado.'
+                                            }
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-gray-800 shadow-sm">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Retenção</p>
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Clientes para reengajar</h3>
+                                        </div>
+                                        <Icon name="notifications_active" className="text-amber-500 text-2xl" />
+                                    </div>
+                                    {inactiveClients.length === 0 ? (
+                                        <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                            Nenhum cliente está há mais de 30 dias sem cortar.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                                            {inactiveClients.map(({ client, daysAway, stats }) => (
+                                                <div key={client.id} className="flex items-center justify-between border border-gray-100 dark:border-gray-800 rounded-lg p-3 hover:border-primary/40 transition-colors">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{client.fullName}</p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                            Último corte há {daysAway} dia{daysAway > 1 ? 's' : ''} · {formatShortDate(stats.lastVisit)}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/clients/${client.id}`);
+                                                        }}
+                                                        className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+                                                    >
+                                                        <Icon name="arrow_outward" className="text-sm" />
+                                                        Ver
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {topSpenders.length > 0 && (
+                                <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-gray-800 shadow-sm mb-4 sm:mb-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Faturamento por cliente</p>
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Top clientes por gasto</h3>
+                                        </div>
+                                        <Icon name="trophy" className="text-yellow-500 text-2xl" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        {topSpenders.map(({ client, totalSpent, lastVisit }, index) => (
+                                            <div
+                                                key={client.id}
+                                                onClick={() => navigate(`/clients/${client.id}`)}
+                                                className="flex items-center justify-between p-3 rounded-lg border border-transparent hover:border-primary/40 hover:bg-primary/5 cursor-pointer transition-all active:scale-[0.99]"
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-sm font-semibold text-gray-600 dark:text-gray-300">
+                                                        #{index + 1}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{client.fullName}</p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                            Última visita: {formatShortDate(lastVisit)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                                                    {formatCurrency(totalSpent)}
+                                                </p>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}

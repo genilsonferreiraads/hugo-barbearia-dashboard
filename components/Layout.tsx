@@ -54,6 +54,19 @@ export const Layout: React.FC = () => {
         setIsCollapsed(!isCollapsed);
     };
 
+    const handleSidebarAreaClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (!isCollapsed) {
+            return;
+        }
+
+        const target = event.target as HTMLElement;
+        if (target.closest('a, button, input, textarea, select')) {
+            return;
+        }
+
+        setIsCollapsed(false);
+    };
+
     return (
         <div className="relative flex min-h-screen w-full flex-row">
             {/* Mobile Overlay */}
@@ -79,23 +92,33 @@ export const Layout: React.FC = () => {
                 </div>
             </div>
 
-            <aside className={`flex h-screen min-h-full flex-col bg-[#181211] p-4 fixed lg:sticky top-0 z-50 transition-all duration-300 ${
+            <aside 
+                onClick={handleSidebarAreaClick}
+                className={`flex h-screen min-h-full flex-col bg-[#181211] p-4 fixed lg:sticky top-0 z-50 transition-all duration-300 ${
                 isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
             } lg:translate-x-0 lg:relative lg:z-auto ${isCollapsed ? 'lg:w-20' : 'lg:w-64'} w-64`}>
                 <div className="flex flex-col gap-4">
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 flex-1">
                             <div 
-                                className={`relative bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ${avatarZoom ? 'logo-zoom' : ''}`} 
-                                style={{ backgroundImage: `url("/imagens/logo-barbearia.JPG")`, backgroundSize: "120%" }} 
-                                onClick={handleAvatarClick}
+                                className="relative size-10"
                                 onMouseEnter={() => setIsAvatarHovered(true)}
                                 onMouseLeave={() => setIsAvatarHovered(false)}
                             >
-                                {isCollapsed && isAvatarHovered && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/90 rounded-full cursor-pointer hover:bg-black/100 transition-colors">
+                                <div 
+                                    className={`size-10 rounded-full bg-center bg-no-repeat bg-cover border border-white/10 shadow-inner ${avatarZoom ? 'logo-zoom' : ''}`} 
+                                    style={{ backgroundImage: `url("/imagens/logo-barbearia.JPG")`, backgroundSize: '120%' }} 
+                                    onClick={handleAvatarClick}
+                                />
+                                {isCollapsed && (
+                                    <button
+                                        type="button"
+                                        onClick={toggleCollapse}
+                                        className={`absolute inset-0 -m-0.5 flex items-center justify-center rounded-xl border border-white/10 bg-[#392c28] text-white shadow-lg transition-all duration-200 ${isAvatarHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+                                        aria-label="Expandir sidebar"
+                                    >
                                         <span className="material-symbols-outlined text-lg text-white">dock_to_right</span>
-                                    </div>
+                                    </button>
                                 )}
                             </div>
                             <div className={`flex flex-col ${isCollapsed ? 'lg:hidden' : ''}`}>

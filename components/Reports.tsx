@@ -7,6 +7,10 @@ import { useTransactions, useServices, useProducts, useCreditSales } from '../co
 const Icon = ({ name, className, style }: { name: string; className?: string; style?: React.CSSProperties }) => 
     <span className={`material-symbols-outlined ${className || ''}`} style={style}>{name}</span>;
 
+const ORDER_OF_ARRIVAL_LABEL = 'Ordem de Chegada';
+const ORDER_OF_ARRIVAL_LABEL_PLURAL = 'Ordem de Chegada';
+const ORDER_OF_ARRIVAL_LABEL_SHORT = 'Ordem de Chegada';
+
 // Helper function to get today's date in local timezone (YYYY-MM-DD format)
 const getTodayLocalDate = (): string => {
     const today = new Date();
@@ -439,7 +443,7 @@ export const ReportsPage: React.FC = () => {
         return [
             { name: 'Vendas', value: vendas },
             { name: 'Agendados', value: agendado },
-            { name: 'Avulsos', value: avulso }
+            { name: ORDER_OF_ARRIVAL_LABEL_PLURAL, value: avulso }
         ].filter(item => item.value > 0);
     }, [filteredTransactions]);
 
@@ -624,13 +628,124 @@ export const ReportsPage: React.FC = () => {
             .slice(0, 5);
     }, [filteredTransactions, products]);
 
+    const dateFilterOptions: Array<{ id: typeof dateFilter; label: string }> = [
+        { id: 'today', label: 'Hoje' },
+        { id: 'week', label: 'Semana' },
+        { id: 'month', label: 'Mês' },
+        { id: 'year', label: 'Ano' },
+        { id: 'all-time', label: 'Geral' },
+        { id: 'custom', label: 'Personalizado' },
+    ];
+
+    const paymentMethodOptions = Object.values(PaymentMethod) as string[];
+
+    const activeFiltersCount = useMemo(() => {
+        let count = 0;
+        if (filterType !== 'all') count++;
+        if (paymentFilter !== 'all') count++;
+        if (searchQuery.trim()) count++;
+        if (dateFilter === 'custom' && customStartDate && customEndDate) count++;
+        return count;
+    }, [filterType, paymentFilter, searchQuery, dateFilter, customStartDate, customEndDate]);
+
+    const insightHighlights = useMemo(() => {
+        const highlights: Array<{ label: string; value: string; helper?: string }> = [];
+
+        if (topServices.length > 0) {
+            highlights.push({
+                label: 'Serviço mais pedido',
+                value: topServices[0].name,
+                helper: `${topServices[0].count}x realizado`,
+            });
+        }
+
+        if (topProducts.length > 0) {
+            highlights.push({
+                label: 'Produto destaque',
+                value: topProducts[0].name,
+                helper: formatCurrency(topProducts[0].revenue),
+            });
+        }
+
+        if (filteredTransactions.length > 0) {
+            const totalsByDay = filteredTransactions.reduce<Record<string, number>>((acc, transaction) => {
+                acc[transaction.date] = (acc[transaction.date] || 0) + transaction.value;
+                return acc;
+            }, {});
+
+            const sortedDays = Object.entries(totalsByDay).sort((a, b) => b[1] - a[1]);
+            if (sortedDays.length > 0) {
+                const [day, amount] = sortedDays[0];
+                const formattedDay = new Date(`${day}T00:00:00`).toLocaleDateString('pt-BR', {
+                    weekday: 'short',
+                    day: '2-digit',
+                    month: '2-digit',
+                });
+                highlights.push({
+                    label: 'Dia mais forte',
+                    value: formattedDay,
+                    helper: formatCurrency(amount),
+                });
+            }
+        }
+
+        if (peakHours.length > 0) {
+            const peak = peakHours[0];
+            highlights.push({
+                label: 'Horário de pico',
+                value: `${String(peak.hour).padStart(2, '0')}h`,
+                helper: formatCurrency(peak.value),
+            });
+        }
+
+        return highlights.slice(0, 3);
+    }, [filteredTransactions, peakHours, topProducts, topServices]);
+
+    const fiadoHealth = useMemo(() => {
+        if (!installments || installments.length === 0) return null;
+
+        const normalizeStatus = (status?: string) => (status || '').toLowerCase();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const nextWeek = new Date(today);
+        nextWeek.setDate(nextWeek.getDate() + 7);
+
+        const overdue = installments.filter(
+            (inst) => normalizeStatus(inst.status) === 'atrasada'
+        );
+        const overdueValue = overdue.reduce((sum, inst) => sum + inst.amount, 0);
+
+        const upcoming = installments.filter((inst) => {
+            if (normalizeStatus(inst.status) !== 'pendente') return false;
+            const dueDate = new Date(inst.dueDate + 'T00:00:00');
+            return dueDate >= today && dueDate <= nextWeek;
+        });
+        const upcomingValue = upcoming.reduce((sum, inst) => sum + inst.amount, 0);
+
+        const openInstallments = installments
+            .filter((inst) => normalizeStatus(inst.status) !== 'paga')
+            .map((inst) => ({ ...inst, dueDateObj: new Date(inst.dueDate + 'T00:00:00') }))
+            .sort((a, b) => a.dueDateObj.getTime() - b.dueDateObj.getTime());
+
+        const nextDue = openInstallments[0];
+
+        return {
+            overdueCount: overdue.length,
+            overdueValue,
+            upcomingCount: upcoming.length,
+            upcomingValue,
+            nextDueDate: nextDue ? nextDue.dueDate : null,
+            nextDueAmount: nextDue ? nextDue.amount : null,
+        };
+    }, [installments]);
+
     // Export functions
     const exportToCSV = () => {
         const headers = ['Data', 'Cliente/Produto', 'Tipo', 'Serviço', 'Método de Pagamento', 'Valor', 'Desconto'];
         const rows = sortedTransactions.map(t => [
             formatDate(t.date),
             getClientName(t.clientName),
-            t.category === 'vendas' ? 'Venda' : t.category === 'agendado' ? 'Agendado' : 'Avulso',
+            t.category === 'vendas' ? 'Venda' : t.category === 'agendado' ? 'Agendado' : ORDER_OF_ARRIVAL_LABEL_SHORT,
             t.service || '-',
             t.paymentMethod || '-',
             t.value.toFixed(2).replace('.', ','),
@@ -827,7 +942,7 @@ export const ReportsPage: React.FC = () => {
                     </thead>
                     <tbody>
                         ${sortedTransactions.map(t => {
-                            const categoryLabel = t.category === 'vendas' ? 'Venda' : t.category === 'agendado' ? 'Agendado' : 'Avulso';
+                            const categoryLabel = t.category === 'vendas' ? 'Venda' : t.category === 'agendado' ? 'Agendado' : ORDER_OF_ARRIVAL_LABEL_SHORT;
                             const categoryClass = t.category === 'vendas' ? 'badge-venda' : t.category === 'agendado' ? 'badge-agendado' : 'badge-avulso';
                             return `
                                 <tr>
@@ -1131,181 +1246,161 @@ export const ReportsPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Search Bar - Discrete at top */}
-            <div className="mb-6">
-                <div className="relative max-w-md">
-                    <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 text-lg" />
-                    <input
-                        type="text"
-                        placeholder="Buscar cliente ou serviço..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
-                    />
-                    {searchQuery && (
-                        <button
-                            onClick={() => setSearchQuery('')}
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                        >
-                            <Icon name="close" className="text-lg" />
-                        </button>
-                    )}
+            {/* Filters Panel */}
+            <section className="bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-5 sm:p-6 mb-8 space-y-6">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-[0.3em] mb-1">Contexto</p>
+                        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">{getPerformanceLabel()}</h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{getDateRangeText() || 'Todos os registros'}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {dateFilterOptions.map((option) => (
+                            <button
+                                key={option.id}
+                                onClick={() => setDateFilter(option.id)}
+                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all border flex items-center gap-1.5 ${
+                                    dateFilter === option.id
+                                        ? 'bg-primary text-white border-primary shadow-md'
+                                        : 'bg-transparent border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-primary/60'
+                                }`}
+                            >
+                                {option.id === 'custom' && <Icon name="date_range" className="text-sm" />}
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-            </div>
 
-            {/* Type Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-                <button
-                    onClick={() => setFilterType('all')}
-                    className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-                        filterType === 'all'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
-                    }`}
-                >
-                    Todos
-                </button>
-                <button
-                    onClick={() => setFilterType('vendas')}
-                    className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-                        filterType === 'vendas'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
-                    }`}
-                >
-                    Vendas
-                </button>
-                <button
-                    onClick={() => setFilterType('servicos')}
-                    className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-                        filterType === 'servicos'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
-                    }`}
-                >
-                    Serviços
-                </button>
-            </div>
-
-            {/* Date Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-2 mb-6">
-                <button
-                    onClick={() => setDateFilter('today')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                        dateFilter === 'today'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
-                    }`}
-                >
-                    Hoje
-                </button>
-                <button
-                    onClick={() => setDateFilter('week')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                        dateFilter === 'week'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
-                    }`}
-                >
-                    Semana
-                </button>
-                <button
-                    onClick={() => setDateFilter('month')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                        dateFilter === 'month'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
-                    }`}
-                >
-                    Mês
-                </button>
-                <button
-                    onClick={() => setDateFilter('year')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                        dateFilter === 'year'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
-                    }`}
-                >
-                    Ano
-                </button>
-                <button
-                    onClick={() => setDateFilter('all-time')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                        dateFilter === 'all-time'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
-                    }`}
-                >
-                    Geral
-                </button>
-                <button
-                    onClick={() => setDateFilter('custom')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
-                        dateFilter === 'custom'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-700'
-                    }`}
-                >
-                    <Icon name="date_range" className="text-base" />
-                    <span className="hidden sm:inline">Período</span>
-                    <span className="sm:hidden">Data</span>
-                </button>
-            </div>
-
-            {/* Custom Date Range Picker */}
-            {dateFilter === 'custom' && (
-                <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 p-4 mb-6 shadow-sm animate-fade-in">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                        <div className="flex items-center gap-2">
-                            <Icon name="calendar_today" className="text-xl text-primary" />
-                            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                Selecione o Período:
-                            </label>
-                        </div>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-                            <div className="flex items-center gap-2">
-                                <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">De:</label>
-                                <input
-                                    type="date"
-                                    value={customStartDate}
-                                    onChange={(e) => setCustomStartDate(e.target.value)}
-                                    max={customEndDate || getTodayLocalDate()}
-                                    className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Até:</label>
-                                <input
-                                    type="date"
-                                    value={customEndDate}
-                                    onChange={(e) => setCustomEndDate(e.target.value)}
-                                    min={customStartDate}
-                                    max={getTodayLocalDate()}
-                                    className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                />
-                            </div>
-                            {customStartDate && customEndDate && (
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                    <div className="space-y-3">
+                        <div className="relative">
+                            <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 text-lg" />
+                            <input
+                                type="text"
+                                placeholder="Buscar cliente ou serviço..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                            />
+                            {searchQuery && (
                                 <button
-                                    onClick={() => {
-                                        setCustomStartDate('');
-                                        setCustomEndDate('');
-                                    }}
-                                    className="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors flex items-center gap-1"
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                                 >
-                                    <Icon name="close" className="text-base" />
-                                    Limpar
+                                    <Icon name="close" className="text-lg" />
                                 </button>
                             )}
                         </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                onClick={() => setFilterType('all')}
+                                className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+                                    filterType === 'all'
+                                        ? 'bg-primary text-white shadow-md'
+                                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
+                                }`}
+                            >
+                                Todos
+                            </button>
+                            <button
+                                onClick={() => setFilterType('vendas')}
+                                className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+                                    filterType === 'vendas'
+                                        ? 'bg-primary text-white shadow-md'
+                                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
+                                }`}
+                            >
+                                Vendas
+                            </button>
+                            <button
+                                onClick={() => setFilterType('servicos')}
+                                className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+                                    filterType === 'servicos'
+                                        ? 'bg-primary text-white shadow-md'
+                                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
+                                }`}
+                            >
+                                Serviços
+                            </button>
+                        </div>
                     </div>
-                    {customStartDate && customEndDate && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                            Mostrando dados de {new Date(customStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(customEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
-                        </p>
-                    )}
+
+                    <div className="space-y-3">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Forma de pagamento</label>
+                            <select
+                                value={paymentFilter}
+                                onChange={(e) => setPaymentFilter(e.target.value as PaymentMethod | 'all')}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-900 dark:text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                            >
+                                <option value="all">Todas</option>
+                                {paymentMethodOptions.map((method) => (
+                                    <option key={method} value={method}>
+                                        {method}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-3 text-xs text-gray-500 dark:text-gray-400">
+                            <span className="font-semibold text-gray-800 dark:text-gray-100">{activeFiltersCount}</span> filtro{activeFiltersCount === 1 ? '' : 's'} ativo{activeFiltersCount === 1 ? '' : 's'} no momento.
+                        </div>
+                    </div>
                 </div>
-            )}
+
+                {dateFilter === 'custom' && (
+                    <div className="bg-white dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm animate-fade-in">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <Icon name="calendar_today" className="text-xl text-primary" />
+                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Selecione o Período:
+                                </label>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">De:</label>
+                                    <input
+                                        type="date"
+                                        value={customStartDate}
+                                        onChange={(e) => setCustomStartDate(e.target.value)}
+                                        max={customEndDate || getTodayLocalDate()}
+                                        className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Até:</label>
+                                    <input
+                                        type="date"
+                                        value={customEndDate}
+                                        onChange={(e) => setCustomEndDate(e.target.value)}
+                                        min={customStartDate}
+                                        max={getTodayLocalDate()}
+                                        className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    />
+                                </div>
+                                {customStartDate && customEndDate && (
+                                    <button
+                                        onClick={() => {
+                                            setCustomStartDate('');
+                                            setCustomEndDate('');
+                                        }}
+                                        className="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors flex items-center gap-1"
+                                    >
+                                        <Icon name="close" className="text-base" />
+                                        Limpar
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        {customStartDate && customEndDate && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                Mostrando dados de {new Date(customStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(customEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+                            </p>
+                        )}
+                    </div>
+                )}
+            </section>
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1407,6 +1502,20 @@ export const ReportsPage: React.FC = () => {
                 )}
             </div>
 
+            {insightHighlights.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
+                    {insightHighlights.map((item) => (
+                        <div key={item.label} className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40 p-4">
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{item.label}</p>
+                            <p className="text-lg font-bold text-gray-900 dark:text-white mt-1">{item.value}</p>
+                            {item.helper && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{item.helper}</p>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {/* Card: Meta Mensal (apenas quando filtro for 'month') */}
             {dateFilter === 'month' && (
                 <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border-2 border-blue-300 dark:border-blue-700 p-5 mb-8 shadow-sm">
@@ -1448,6 +1557,44 @@ export const ReportsPage: React.FC = () => {
                                 Faltam {formatCurrency(Math.max(monthlyGoal - totals.total, 0))}
                             </p>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {fiadoHealth && (
+                <div className="bg-white dark:bg-gray-900/50 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 mb-8 shadow-sm">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Saúde do Fiado</p>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                                {formatCurrency(totals.totalReceivable)}
+                            </h3>
+                            {fiadoHealth.nextDueDate && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Próximo vencimento: {formatDate(fiadoHealth.nextDueDate)}
+                                    {fiadoHealth.nextDueAmount ? ` · ${formatCurrency(fiadoHealth.nextDueAmount)}` : ''}
+                                </p>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => navigate('/sales?tab=credit')}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-primary/40 text-primary font-semibold text-sm hover:bg-primary/10 transition-colors"
+                        >
+                            <Icon name="open_in_new" className="text-base" />
+                            Gerenciar fiados
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                        <div className="rounded-lg border border-red-100 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
+                            <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wide">Parcelas vencidas</p>
+                            <p className="text-lg font-bold text-red-700 dark:text-red-300 mt-1">{formatCurrency(fiadoHealth.overdueValue)}</p>
+                            <p className="text-xs text-red-600/80 dark:text-red-300/80">{fiadoHealth.overdueCount} aguardando pagamento</p>
+                        </div>
+                        <div className="rounded-lg border border-amber-100 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide">Próximos 7 dias</p>
+                            <p className="text-lg font-bold text-amber-700 dark:text-amber-300 mt-1">{formatCurrency(fiadoHealth.upcomingValue)}</p>
+                            <p className="text-xs text-amber-600/80 dark:text-amber-300/80">{fiadoHealth.upcomingCount} parcela{fiadoHealth.upcomingCount === 1 ? '' : 's'} a vencer</p>
+                        </div>
                     </div>
                 </div>
             )}

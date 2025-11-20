@@ -43,6 +43,49 @@
   }
 }
 
+/* Logo avatar styles */
+.logo-avatar-wrapper {
+  position: relative;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.logo-avatar-image {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 120%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.logo-overlay-square {
+  position: absolute;
+  inset: -0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background-color: rgba(57, 44, 40, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
 /* Background animation */
 @keyframes background-motion {
   0% {

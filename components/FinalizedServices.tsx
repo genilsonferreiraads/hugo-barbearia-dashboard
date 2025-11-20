@@ -294,7 +294,7 @@ export const FinalizedServicesPage: React.FC = () => {
                             : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 border border-red-300 dark:border-red-700'
                     }`}
                 >
-                    Avulsos
+                    Ordem de chegada
                 </button>
             </div>
 

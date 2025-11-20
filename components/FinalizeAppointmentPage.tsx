@@ -313,11 +313,11 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
         let whatsappFromAppointment: string | null = null;
         
         // Extrair nome e WhatsApp do appointment
-        if (appointment.clientName.includes('|')) {
+                if (appointment.clientName.includes('|')) {
             const parts = appointment.clientName.split('|');
             initialClientName = parts[0];
             whatsappFromAppointment = parts[1] || null;
-        } else if (appointment.clientName.includes('(')) {
+                } else if (appointment.clientName.includes('(')) {
             const parts = appointment.clientName.split('(');
             initialClientName = parts[0].trim();
             // Extrair número entre parênteses
@@ -328,13 +328,13 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
         }
         
         // Definir o nome do cliente e WhatsApp do agendamento
-        setClientName(initialClientName);
+            setClientName(initialClientName);
         setAppointmentWhatsapp(whatsappFromAppointment);
-        
-        // Tentar encontrar cliente na base pelo nome
-        const foundClient = clients.find(c => 
-            c.fullName.toLowerCase() === initialClientName.toLowerCase()
-        );
+            
+            // Tentar encontrar cliente na base pelo nome
+            const foundClient = clients.find(c => 
+                c.fullName.toLowerCase() === initialClientName.toLowerCase()
+            );
         
         // Sempre atualizar selectedClient, mesmo que seja null
         setSelectedClient(foundClient || null);
@@ -377,7 +377,7 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                             <span className="font-medium hidden sm:inline">Voltar</span>
                         </button>
                         <div className="flex-1">
-                            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Finalizar Atendimento</h1>
+                        <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Finalizar Atendimento</h1>
                             {/* Mobile Steps Indicator */}
                             <div className="md:hidden flex items-center gap-2 mt-1">
                                 <div className={`flex items-center gap-1 text-xs font-medium ${currentStep === 1 ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
@@ -579,15 +579,15 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                                 {/* Cart Header with Service Count */}
                                 <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
                                     <div className="flex items-center gap-2">
-                                        <Icon name="shopping_cart" className="text-primary text-xl" />
+                                    <Icon name="shopping_cart" className="text-primary text-xl" />
                                         <h2 className="text-lg font-bold text-gray-900 dark:text-white">Pagamento</h2>
-                                    </div>
-                                    {selectedServices.length > 0 && (
+                                </div>
+                                {selectedServices.length > 0 && (
                                         <div className="flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full">
                                             <Icon name="content_cut" className="text-primary text-sm" />
                                             <span className="text-xs font-bold text-primary">{selectedServices.length}</span>
-                                        </div>
-                                    )}
+                                    </div>
+                                )}
                                 </div>
 
                                 {/* Totals */}
@@ -627,9 +627,9 @@ export const FinalizeAppointmentPage: React.FC<FinalizeAppointmentPageProps> = (
                                 {/* Payment Methods */}
                                 <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Icon name="payment" className="text-primary text-lg" />
-                                            <h3 className="text-sm font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="payment" className="text-primary text-lg" />
+                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white">Formas de Pagamento</h3>
                                         </div>
                                         <span className="text-xs text-red-600 dark:text-red-400 font-semibold">*</span>
                                     </div>

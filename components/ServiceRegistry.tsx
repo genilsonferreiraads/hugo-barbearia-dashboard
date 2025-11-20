@@ -294,7 +294,7 @@ export const ServiceRegistryPage: React.FC = () => {
                         <span className="font-medium hidden sm:inline">Voltar</span>
                     </button>
                     <div className="flex-1">
-                        <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Novo Atendimento</h1>
+                    <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Novo Atendimento</h1>
                         {/* Mobile Steps Indicator */}
                         <div className="md:hidden flex items-center gap-2 mt-1">
                             <div className={`flex items-center gap-1 text-xs font-medium ${currentStep === 1 ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
@@ -448,15 +448,15 @@ export const ServiceRegistryPage: React.FC = () => {
                                             </button>
                                         )}
                                     </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                            <Icon name="search_off" className="text-4xl mb-2 opacity-50" />
-                            <p className="text-sm">Nenhum serviço encontrado</p>
-                        </div>
-                    )}
-                </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                                <Icon name="search_off" className="text-4xl mb-2 opacity-50" />
+                                <p className="text-sm">Nenhum serviço encontrado</p>
+                            </div>
+                        )}
+                    </div>
 
                 {/* Mobile Next Button - Step 1 */}
                 {currentStep === 1 && (
@@ -480,7 +480,7 @@ export const ServiceRegistryPage: React.FC = () => {
                         </button>
                     </div>
                 )}
-            </div>
+                </div>
 
                 {/* Right Column - Cart (Sticky) */}
                 <div className={`lg:col-span-1 ${currentStep === 1 ? 'hidden md:block' : ''}`}>
@@ -489,15 +489,15 @@ export const ServiceRegistryPage: React.FC = () => {
                             {/* Cart Header with Service Count */}
                             <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2">
-                                    <Icon name="shopping_cart" className="text-primary text-xl" />
+                                <Icon name="shopping_cart" className="text-primary text-xl" />
                                     <h2 className="text-lg font-bold text-gray-900 dark:text-white">Pagamento</h2>
-                                </div>
-                                {selectedServices.length > 0 && (
+                            </div>
+                            {selectedServices.length > 0 && (
                                     <div className="flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full">
                                         <Icon name="content_cut" className="text-primary text-sm" />
                                         <span className="text-xs font-bold text-primary">{selectedServices.length}</span>
-                                    </div>
-                                )}
+                                </div>
+                            )}
                             </div>
 
                             {/* Totals */}

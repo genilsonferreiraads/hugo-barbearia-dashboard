@@ -257,11 +257,11 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Coluna Esquerda - Informações do Cliente (Desktop sempre visível, Mobile Step 1) */}
                     <div className={`lg:col-span-2 ${step === 2 && isMobile ? 'hidden' : ''}`}>
-                        {errorMessage && (
+                            {errorMessage && (
                             <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 mb-4">
-                                <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
-                            </div>
-                        )}
+                                    <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+                                </div>
+                            )}
 
                         {/* Client Information Card */}
                         <div className="bg-white dark:bg-gray-900/50 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
@@ -330,8 +330,8 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                     <span>Continuar</span>
                                     <Icon name="arrow_forward" className="text-base" />
                                 </button>
-                            </div>
-                        )}
+                        </div>
+                    )}
                     </div>
 
                     {/* Coluna Direita - Data e Horários (Desktop sempre visível, Mobile Step 2) */}
@@ -348,7 +348,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                         <Icon name="check_circle" className="text-sm" />
                                         Selecionado
                                     </span>
-                                )}
+                            )}
                             </div>
 
                             {/* Date Selection */}
@@ -376,7 +376,7 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2">
                                     <Icon name="schedule" className="text-gray-400 text-base" />
-                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Horários Disponíveis</p>
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white">Horários Disponíveis</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     {AVAILABLE_TIMES.map((availableTime) => {
@@ -431,8 +431,8 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                                                 <span className="font-medium text-gray-900 dark:text-white">{time}</span>
                                             </div>
                                         )}
-                                    </div>
-                                )}
+                        </div>
+                    )}
 
                                 <button 
                                     type="submit"
@@ -456,33 +456,33 @@ export const NewAppointmentPage: React.FC<NewAppointmentPageProps> = ({ onSave, 
                             {/* Mobile Action Buttons (Step 2) */}
                             {isMobile && step === 2 && (
                                 <div className="pt-5 border-t border-gray-200 dark:border-gray-800 flex gap-3">
-                                    <button 
-                                        type="button" 
-                                        onClick={handlePrevStep}
+                                <button 
+                                    type="button" 
+                                    onClick={handlePrevStep}
                                         className="flex-1 px-6 h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm"
-                                    >
-                                        <Icon name="arrow_back" className="text-base" />
-                                        <span>Voltar</span>
-                                    </button>
-                                    <button 
-                                        type="submit"
-                                        disabled={isSubmitting || !time}
+                                >
+                                    <Icon name="arrow_back" className="text-base" />
+                                    <span>Voltar</span>
+                                </button>
+                                <button 
+                                    type="submit"
+                                    disabled={isSubmitting || !time}
                                         className="flex-1 px-6 h-10 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                                    >
-                                        {isSubmitting ? (
-                                            <>
-                                                <span className="animate-spin">⏳</span>
-                                                <span>Agendando...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Icon name="check_circle" className="text-base" />
-                                                <span>Confirmar</span>
-                                            </>
-                                        )}
-                                    </button>
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <span className="animate-spin">⏳</span>
+                                            <span>Agendando...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Icon name="check_circle" className="text-base" />
+                                            <span>Confirmar</span>
+                                        </>
+                                    )}
+                                </button>
                                 </div>
-                            )}
+                        )}
                         </div>
                     </div>
                 </form>

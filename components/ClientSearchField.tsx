@@ -36,17 +36,17 @@ export const ClientSearchField: React.FC<ClientSearchFieldProps> = ({
     // Sincronizar com value externo quando mudar
     useEffect(() => {
         if (value !== undefined && value !== clientName) {
-            setClientName(value);
-            // Tentar encontrar cliente pelo nome
-            if (value && clients && clients.length > 0) {
-                const found = clients.find(c => 
-                    c.fullName.toLowerCase() === value.toLowerCase()
-                );
-                setSelectedClient(found || null);
-            } else {
-                setSelectedClient(null);
+                setClientName(value);
+                // Tentar encontrar cliente pelo nome
+                if (value && clients && clients.length > 0) {
+                    const found = clients.find(c => 
+                        c.fullName.toLowerCase() === value.toLowerCase()
+                    );
+                    setSelectedClient(found || null);
+                } else {
+                    setSelectedClient(null);
+                }
             }
-        }
     }, [value, clients, clientName]);
 
     const handleClientSelect = (client: Client | null) => {

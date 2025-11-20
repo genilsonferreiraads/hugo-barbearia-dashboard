@@ -753,7 +753,7 @@ export const DashboardPage: React.FC = () => {
                         </div>
                         <div className="flex-1">
                             <p className="font-bold text-zinc-900 dark:text-white text-sm">Novo Atendimento</p>
-                            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Registrar serviço avulso</p>
+                            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Registrar ordem de chegada</p>
                         </div>
                     </button>
 
